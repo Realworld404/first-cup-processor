@@ -74,21 +74,28 @@ TITLE 3: [title]
 TITLE 4: [title]
 TITLE 5: [title]
 
-2. YOUTUBE DESCRIPTION
-Write a compelling description including:
-- Hook paragraph (2-3 sentences) that entices viewers about the PANEL DISCUSSION topic
-- Key topics covered in the PANEL DISCUSSION ONLY (3-5 bullet points with brief descriptions)
-- DO NOT describe the teaser/main session content in the main description
-- Chapter breaks with timestamps in this EXACT format:
-  00:00 - Introduction
-  05:23 - [Panel discussion topic name]
-  12:45 - [Panel discussion topic name]
-  25:00 - Transition to Main Session (or similar - include this timestamp but keep it brief)
-  [derive all timestamps and topics from the transcript content]
-- Call to action (subscribe, like, comment)
-- 5-10 relevant hashtags related to the PANEL DISCUSSION topic
+2. YOUTUBE DESCRIPTION COMPONENTS
+Generate these components separately (they will be inserted into a template):
 
-Start this section with "YOUTUBE DESCRIPTION:" header.
+A) HOOK (2-3 engaging sentences that create curiosity about the PANEL DISCUSSION)
+Format: Start with "HOOK:" then the text
+
+B) KEY TOPICS (3-5 bullet points about what's covered in the PANEL DISCUSSION ONLY)
+Format: Start with "KEY_TOPICS:" then use bullet points with "• " prefix
+Do NOT describe the teaser/main session content
+
+C) TIMESTAMPS (Chapter markers with exact timestamps)
+Format: Start with "TIMESTAMPS:" then list timestamps like:
+00:00 - Introduction
+05:23 - [Panel discussion topic name]
+12:45 - [Panel discussion topic name]
+25:00 - Transition to Main Session
+[Include ALL timestamps from the transcript]
+
+D) KEYWORDS (5-10 relevant keywords, comma-separated, NO hashtags)
+Format: Start with "KEYWORDS:" then comma-separated keywords
+Example: "KEYWORDS: artificial intelligence, productivity, business automation, AI agents, workflow optimization"
+These should be SEO-relevant keywords for the PANEL DISCUSSION topic only.
 
 3. NEWSLETTER ARTICLE
 Write a 200-300 word newsletter article that:
@@ -104,13 +111,138 @@ Start this section with "NEWSLETTER ARTICLE:" header.
 
 Please format your response with clear section headers so outputs can be easily parsed."""
 
-def process_with_claude(transcript, api_key):
-    """Send transcript to Claude and get processed outputs"""
+def get_titles_from_claude(transcript, api_key, feedback=None):
+    """Get title options from Claude, optionally with feedback for iteration"""
+    client = anthropic.Anthropic(api_key=api_key)
+    
+    if feedback:
+        prompt = f"""Based on this transcript, generate 5 NEW title options incorporating this feedback:
+
+FEEDBACK: {feedback}
+
+TRANSCRIPT:
+{transcript}
+
+IMPORTANT CONTEXT:
+This is "First Cup" - a panel discussion show. Focus ONLY on the panel discussion topic (first ~25 minutes), NOT the teaser at the end.
+
+Create 5 NEW title options that are:
+- Keyword-rich for SEO
+- Optimized for virality (curiosity gap, emotional trigger, or bold claim)
+- Under 60 characters
+- Focused ONLY on the First Cup panel discussion topic
+- Address the feedback provided above
+
+Format each on a new line as:
+TITLE 1: [title]
+TITLE 2: [title]
+TITLE 3: [title]
+TITLE 4: [title]
+TITLE 5: [title]"""
+    else:
+        prompt = f"""Analyze this transcript and create 5 title options:
+
+TRANSCRIPT:
+{transcript}
+
+IMPORTANT CONTEXT:
+This is "First Cup" - a panel discussion show. Focus ONLY on the panel discussion topic (first ~25 minutes), NOT the teaser at the end.
+
+Create 5 title options that are:
+- Keyword-rich for SEO
+- Optimized for virality (curiosity gap, emotional trigger, or bold claim)
+- Under 60 characters
+- Focused ONLY on the First Cup panel discussion topic
+
+Format each on a new line as:
+TITLE 1: [title]
+TITLE 2: [title]
+TITLE 3: [title]
+TITLE 4: [title]
+TITLE 5: [title]"""
+    
+    print("  Generating titles from Claude API...")
+    message = client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=1000,
+        messages=[
+            {"role": "user", "content": prompt}
+        ]
+    )
+    
+    response_text = message.content[0].text
+    
+    # Extract titles
+    title_pattern = r'TITLE \d+: (.+?)(?=\n|$)'
+    titles = re.findall(title_pattern, response_text)
+    
+    return titles
+
+def interactive_title_selection(transcript, api_key):
+    """Interactive title selection with iteration capability"""
+    print("\n" + "="*60)
+    print("TITLE SELECTION")
+    print("="*60)
+    
+    titles = get_titles_from_claude(transcript, api_key)
+    
+    while True:
+        print("\n📝 Title Options:\n")
+        for i, title in enumerate(titles, 1):
+            print(f"  {i}. {title}")
+        
+        print("\n" + "-"*60)
+        print("Options:")
+        print("  • Enter a number (1-5) to select that title")
+        print("  • Enter 'f' to provide feedback and generate new titles")
+        print("  • Enter 'q' to quit without processing")
+        print("-"*60)
+        
+        choice = input("\nYour choice: ").strip().lower()
+        
+        if choice == 'q':
+            print("\n❌ Processing cancelled.")
+            return None
+        
+        elif choice == 'f':
+            print("\n💬 Provide feedback for title generation:")
+            print("   (e.g., 'Focus more on AI', 'Make it more specific', 'Too generic')")
+            feedback = input("\nFeedback: ").strip()
+            
+            if feedback:
+                print("\n🔄 Generating new titles based on your feedback...")
+                titles = get_titles_from_claude(transcript, api_key, feedback)
+            else:
+                print("⚠️  No feedback provided, keeping current titles.")
+        
+        elif choice.isdigit() and 1 <= int(choice) <= 5:
+            selected_title = titles[int(choice) - 1]
+            print(f"\n✅ Selected: {selected_title}")
+            
+            confirm = input("\n🔍 Confirm this title? (y/n): ").strip().lower()
+            if confirm == 'y':
+                return selected_title
+            else:
+                print("\n↩️  Let's choose again...")
+        
+        else:
+            print("⚠️  Invalid choice. Please try again.")
+
+def process_with_claude(transcript, api_key, selected_title):
+    """Send transcript to Claude and get processed outputs with the selected title"""
     client = anthropic.Anthropic(api_key=api_key)
     
     prompt = create_prompt(transcript)
     
-    print("  Sending to Claude API...")
+    # Add the selected title to the prompt
+    prompt = f"""{prompt}
+
+IMPORTANT: The user has selected this title for the video:
+"{selected_title}"
+
+Use this exact title as context when writing the description and newsletter article. The description and newsletter should align with and support this chosen title."""
+    
+    print("\n  📝 Generating description and newsletter...")
     message = client.messages.create(
         model="claude-sonnet-4-20250514",
         max_tokens=4000,
@@ -120,38 +252,83 @@ def process_with_claude(transcript, api_key):
     )
     
     response_text = message.content[0].text
-    print(f"  Response received ({len(response_text)} chars)")
+    print(f"  ✓ Response received ({len(response_text)} chars)")
     
     return response_text
 
 def parse_response(response_text):
     """Parse Claude's response into structured outputs"""
     outputs = {
-        'titles': [],
-        'description': '',
+        'hook': '',
+        'key_topics': '',
+        'timestamps': '',
+        'keywords': '',
         'newsletter': ''
     }
     
-    # Extract titles
-    title_pattern = r'TITLE \d+: (.+?)(?=\n|$)'
-    titles = re.findall(title_pattern, response_text)
-    outputs['titles'] = titles
-    
-    # Extract YouTube description
-    desc_match = re.search(r'YOUTUBE DESCRIPTION:(.*?)(?=NEWSLETTER ARTICLE:|$)',
+    # Extract hook
+    hook_match = re.search(r'HOOK:(.*?)(?=KEY_TOPICS:|TIMESTAMPS:|KEYWORDS:|NEWSLETTER|$)', 
                           response_text, re.DOTALL | re.IGNORECASE)
-    if desc_match:
-        outputs['description'] = desc_match.group(1).strip()
+    if hook_match:
+        outputs['hook'] = hook_match.group(1).strip()
+    
+    # Extract key topics
+    topics_match = re.search(r'KEY_TOPICS:(.*?)(?=TIMESTAMPS:|KEYWORDS:|NEWSLETTER|$)', 
+                            response_text, re.DOTALL | re.IGNORECASE)
+    if topics_match:
+        outputs['key_topics'] = topics_match.group(1).strip()
+    
+    # Extract timestamps
+    timestamps_match = re.search(r'TIMESTAMPS:(.*?)(?=KEYWORDS:|NEWSLETTER|$)', 
+                                response_text, re.DOTALL | re.IGNORECASE)
+    if timestamps_match:
+        outputs['timestamps'] = timestamps_match.group(1).strip()
+    
+    # Extract keywords
+    keywords_match = re.search(r'KEYWORDS:(.*?)(?=NEWSLETTER|$)', 
+                              response_text, re.DOTALL | re.IGNORECASE)
+    if keywords_match:
+        keywords_raw = keywords_match.group(1).strip()
+        # Clean up keywords - remove hashtags if present, ensure comma separation
+        keywords_raw = keywords_raw.replace('#', '').strip()
+        outputs['keywords'] = keywords_raw
     
     # Extract newsletter article
-    newsletter_match = re.search(r'NEWSLETTER ARTICLE:(.*?)$',
+    newsletter_match = re.search(r'NEWSLETTER ARTICLE:(.*?)$', 
                                 response_text, re.DOTALL | re.IGNORECASE)
     if newsletter_match:
         outputs['newsletter'] = newsletter_match.group(1).strip()
     
     return outputs
 
-def save_outputs(outputs, output_dir, base_filename):
+def load_template(template_path):
+    """Load the YouTube description template"""
+    if template_path.exists():
+        with open(template_path, 'r', encoding='utf-8') as f:
+            return f.read()
+    else:
+        # Return a basic default template if file doesn't exist
+        return """{{HOOK}}
+
+{{KEY_TOPICS}}
+
+⏱️ TIMESTAMPS:
+{{TIMESTAMPS}}
+
+---
+
+Keywords: {{KEYWORDS}}
+"""
+
+def populate_template(template, outputs):
+    """Populate the template with parsed outputs"""
+    description = template.replace('{{HOOK}}', outputs['hook'])
+    description = description.replace('{{KEY_TOPICS}}', outputs['key_topics'])
+    description = description.replace('{{TIMESTAMPS}}', outputs['timestamps'])
+    description = description.replace('{{KEYWORDS}}', outputs['keywords'])
+    return description
+
+def save_outputs(outputs, output_dir, base_filename, selected_title, description_text):
     """Save processed outputs to files"""
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     output_dir = Path(output_dir)
@@ -160,36 +337,49 @@ def save_outputs(outputs, output_dir, base_filename):
     transcript_dir = output_dir / f"{base_filename}_{timestamp}"
     transcript_dir.mkdir(parents=True, exist_ok=True)
     
-    # Save titles
-    titles_file = transcript_dir / "titles.txt"
-    with open(titles_file, 'w') as f:
-        f.write("=== TITLE OPTIONS ===\n\n")
-        for i, title in enumerate(outputs['titles'], 1):
-            f.write(f"{i}. {title}\n")
+    # Save selected title
+    title_file = transcript_dir / "SELECTED_TITLE.txt"
+    with open(title_file, 'w') as f:
+        f.write("=== SELECTED TITLE ===\n\n")
+        f.write(f"{selected_title}\n")
     
-    # Save YouTube description
+    # Save YouTube description (populated from template)
     desc_file = transcript_dir / "youtube_description.txt"
     with open(desc_file, 'w') as f:
-        f.write(outputs['description'])
+        f.write(description_text)
+    
+    # Save keywords separately
+    keywords_file = transcript_dir / "keywords.txt"
+    with open(keywords_file, 'w') as f:
+        f.write("=== KEYWORDS (comma-separated) ===\n\n")
+        f.write(outputs['keywords'])
     
     # Save newsletter article
     newsletter_file = transcript_dir / "newsletter_article.txt"
     with open(newsletter_file, 'w') as f:
         f.write(outputs['newsletter'])
     
+    # Save components separately for reference/editing
+    components_file = transcript_dir / "description_components.txt"
+    with open(components_file, 'w') as f:
+        f.write("=== DESCRIPTION COMPONENTS ===\n\n")
+        f.write(f"HOOK:\n{outputs['hook']}\n\n")
+        f.write(f"KEY TOPICS:\n{outputs['key_topics']}\n\n")
+        f.write(f"TIMESTAMPS:\n{outputs['timestamps']}\n\n")
+        f.write(f"KEYWORDS:\n{outputs['keywords']}\n")
+    
     # Save full response for reference
     full_file = transcript_dir / "full_response.txt"
     with open(full_file, 'w') as f:
-        f.write("=== TITLES ===\n\n")
-        for i, title in enumerate(outputs['titles'], 1):
-            f.write(f"{i}. {title}\n")
-        f.write(f"\n\n=== YOUTUBE DESCRIPTION ===\n\n{outputs['description']}")
+        f.write(f"=== SELECTED TITLE ===\n\n{selected_title}")
+        f.write(f"\n\n=== YOUTUBE DESCRIPTION (with template) ===\n\n{description_text}")
+        f.write(f"\n\n=== KEYWORDS ===\n\n{outputs['keywords']}")
         f.write(f"\n\n=== NEWSLETTER ARTICLE ===\n\n{outputs['newsletter']}")
     
     print(f"  ✓ Outputs saved to: {transcript_dir}")
     return transcript_dir
 
-def process_transcript_file(filepath, output_dir, api_key):
+def process_transcript_file(filepath, output_dir, api_key, template_path):
     """Process a single transcript file"""
     print(f"\n📄 Processing: {filepath.name}")
     
@@ -199,29 +389,47 @@ def process_transcript_file(filepath, output_dir, api_key):
     
     print(f"  Transcript length: {len(transcript)} characters")
     
-    # Process with Claude
-    response = process_with_claude(transcript, api_key)
+    # Interactive title selection
+    selected_title = interactive_title_selection(transcript, api_key)
     
-    # Parse response
+    if selected_title is None:
+        print("\n⚠️  Skipping this file (user cancelled)")
+        return None
+    
+    # Process with Claude using the selected title
+    response = process_with_claude(transcript, api_key, selected_title)
+    
+    # Parse response into components
     outputs = parse_response(response)
     
-    # Save outputs
+    # Load and populate template
+    template = load_template(template_path)
+    description_text = populate_template(template, outputs)
+    
+    # Save outputs including the populated description
     base_filename = filepath.stem
-    output_path = save_outputs(outputs, output_dir, base_filename)
+    output_path = save_outputs(outputs, output_dir, base_filename, selected_title, description_text)
     
     # Mark as processed
     save_processed_file(output_dir, filepath.name)
     
-    print(f"  ✅ Complete!")
+    print(f"\n  ✅ Complete!")
     return output_path
 
-def watch_directory(watch_dir, output_dir, api_key):
+def watch_directory(watch_dir, output_dir, api_key, template_path):
     """Watch directory for new transcript files"""
     watch_path = Path(watch_dir)
     output_path = Path(output_dir)
     
     # Create output directory if it doesn't exist
     output_path.mkdir(parents=True, exist_ok=True)
+    
+    # Check for template file
+    if template_path.exists():
+        print(f"📄 Using template: {template_path}")
+    else:
+        print(f"⚠️  Template not found at {template_path}")
+        print(f"   Using basic default template")
     
     print(f"👀 Watching directory: {watch_path}")
     print(f"📁 Output directory: {output_path}")
@@ -241,10 +449,14 @@ def watch_directory(watch_dir, output_dir, api_key):
             for filepath in transcript_files:
                 if filepath.name == PROCESSED_FILE:
                     continue
+                
+                # Skip the template file
+                if filepath.name == template_path.name:
+                    continue
                     
                 if filepath.name not in processed:
                     try:
-                        process_transcript_file(filepath, output_dir, api_key)
+                        process_transcript_file(filepath, output_dir, api_key, template_path)
                         processed.append(filepath.name)
                     except Exception as e:
                         print(f"  ❌ Error processing {filepath.name}: {e}")
@@ -261,15 +473,30 @@ def watch_directory(watch_dir, output_dir, api_key):
 def main():
     """Main entry point"""
     if len(sys.argv) < 3:
-        print("Usage: python youtube_processor.py <watch_directory> <output_directory>")
+        print("Usage: python youtube_processor.py <watch_directory> <output_directory> [template_file]")
         print("\nExample:")
         print("  python youtube_processor.py ./transcripts ./processed")
+        print("  python youtube_processor.py ./transcripts ./processed ./my_template.txt")
         print("\nMake sure to set ANTHROPIC_API_KEY environment variable:")
         print("  export ANTHROPIC_API_KEY='your-api-key-here'")
+        print("\nTemplate file should contain placeholders:")
+        print("  {{HOOK}}, {{KEY_TOPICS}}, {{TIMESTAMPS}}, {{KEYWORDS}}")
         sys.exit(1)
     
     watch_dir = sys.argv[1]
     output_dir = sys.argv[2]
+    
+    # Check for custom template, otherwise use default
+    if len(sys.argv) >= 4:
+        template_file = sys.argv[3]
+    else:
+        # Look for template in the watch directory
+        template_file = Path(watch_dir) / "youtube_description_template.txt"
+        if not template_file.exists():
+            # Try current directory
+            template_file = Path("youtube_description_template.txt")
+    
+    template_path = Path(template_file)
     
     # Check for API key
     if not ANTHROPIC_API_KEY:
@@ -288,7 +515,7 @@ def main():
     print("=" * 60)
     
     # Start watching
-    watch_directory(watch_dir, output_dir, ANTHROPIC_API_KEY)
+    watch_directory(watch_dir, output_dir, ANTHROPIC_API_KEY, template_path)
 
 if __name__ == "__main__":
     main()

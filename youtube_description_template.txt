@@ -1,0 +1,42 @@
+{{HOOK}}
+
+{{KEY_TOPICS}}
+
+⏱️ TIMESTAMPS:
+{{TIMESTAMPS}}
+
+---
+
+🎙️ ABOUT FIRST CUP:
+First Cup is our weekly panel discussion where we dive deep into the latest trends, challenges, and opportunities in [YOUR INDUSTRY/TOPIC]. Join us every [DAY] at [TIME] for thoughtful conversation and actionable insights.
+
+👥 PANELISTS:
+[List your regular panelists or leave blank to customize per episode]
+
+🔗 LINKS & RESOURCES:
+• Our Website: [YOUR WEBSITE]
+• Newsletter: [NEWSLETTER LINK]
+• Community: [DISCORD/SLACK/COMMUNITY LINK]
+
+📱 CONNECT WITH US:
+• Twitter: [YOUR TWITTER]
+• LinkedIn: [YOUR LINKEDIN]
+• Instagram: [YOUR INSTAGRAM]
+
+💬 JOIN THE CONVERSATION:
+What's your take on this topic? Drop a comment below and let us know your thoughts!
+
+👍 If you found this discussion valuable, please:
+• Give us a thumbs up
+• Subscribe for weekly episodes
+• Hit the bell icon for notifications
+• Share with someone who needs to hear this
+
+🎯 NEXT EPISODE:
+[Teaser for next week's topic - customize per episode]
+
+---
+
+#FirstCup #YourBrandName
+
+Keywords: {{KEYWORDS}}
