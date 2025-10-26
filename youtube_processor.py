@@ -53,6 +53,8 @@ CRITICAL INSTRUCTIONS:
 - The DESCRIPTION should focus ONLY on the First Cup panel discussion
 - The teaser/transition to the main session should be included in the timestamps section but should NOT be described in the main description text or key topics
 - The NEWSLETTER should focus ONLY on the First Cup panel discussion
+- DO NOT use markdown formatting like ** or __ in any output
+- Use plain text only
 
 TRANSCRIPT:
 {transcript}
@@ -79,10 +81,12 @@ Generate these components separately (they will be inserted into a template):
 
 A) HOOK (2-3 engaging sentences that create curiosity about the PANEL DISCUSSION)
 Format: Start with "HOOK:" then the text
+IMPORTANT: Use plain text only - NO markdown formatting like ** or __
 
 B) KEY TOPICS (3-5 bullet points about what's covered in the PANEL DISCUSSION ONLY)
-Format: Start with "KEY_TOPICS:" then use bullet points with "• " prefix
+Format: Start with "KEY_TOPICS:" then list each topic on a new line with "• " prefix
 Do NOT describe the teaser/main session content
+IMPORTANT: Use plain text only - NO markdown formatting
 
 C) TIMESTAMPS (Chapter markers with exact timestamps)
 Format: Start with "TIMESTAMPS:" then list timestamps like:
@@ -92,10 +96,17 @@ Format: Start with "TIMESTAMPS:" then list timestamps like:
 25:00 - Transition to Main Session
 [Include ALL timestamps from the transcript]
 
-D) KEYWORDS (5-10 relevant keywords, comma-separated, NO hashtags)
-Format: Start with "KEYWORDS:" then comma-separated keywords
-Example: "KEYWORDS: artificial intelligence, productivity, business automation, AI agents, workflow optimization"
+D) PANELISTS (List of panelists who participated in this episode)
+Format: Start with "PANELISTS:" then list each panelist with their name and title/company:
+• [Name] - [Title/Company or brief description]
+• [Name] - [Title/Company or brief description]
+Extract this information from the transcript. If titles/companies aren't mentioned, just use their names.
+
+E) KEYWORDS (5-10 relevant keywords, comma-separated, NO hashtags)
+Format: Start with "KEYWORDS:" then comma-separated keywords on ONE LINE
+Example: artificial intelligence, productivity, business automation, AI agents, workflow optimization
 These should be SEO-relevant keywords for the PANEL DISCUSSION topic only.
+IMPORTANT: Put ALL keywords on a single line, comma-separated, with NO extra text or numbering after
 
 3. NEWSLETTER ARTICLE
 Write a 200-300 word newsletter article that:
@@ -106,8 +117,15 @@ Write a 200-300 word newsletter article that:
 - Ends with a clear CTA to watch the full video on YouTube
 - Uses a conversational, friendly tone (not overly promotional)
 - Include a suggested subject line at the top focused on the panel discussion topic
+- Use plain text only - NO markdown formatting like ** or __
 
 Start this section with "NEWSLETTER ARTICLE:" header.
+
+CRITICAL FORMATTING REMINDERS:
+- NO markdown formatting (**, __, etc.) anywhere in your response
+- Keywords must be on ONE line only, comma-separated
+- Use plain text throughout
+- Do not add extra numbering or text after the keywords line
 
 Please format your response with clear section headers so outputs can be easily parsed."""
 
@@ -262,27 +280,50 @@ def parse_response(response_text):
         'hook': '',
         'key_topics': '',
         'timestamps': '',
+        'panelists': '',
         'keywords': '',
         'newsletter': ''
     }
     
     # Extract hook
-    hook_match = re.search(r'HOOK:(.*?)(?=KEY_TOPICS:|TIMESTAMPS:|KEYWORDS:|NEWSLETTER|$)', 
+    hook_match = re.search(r'HOOK:(.*?)(?=KEY_TOPICS:|TIMESTAMPS:|PANELISTS:|KEYWORDS:|NEWSLETTER|$)', 
                           response_text, re.DOTALL | re.IGNORECASE)
     if hook_match:
-        outputs['hook'] = hook_match.group(1).strip()
+        hook = hook_match.group(1).strip()
+        # Remove markdown formatting
+        hook = re.sub(r'\*\*', '', hook)
+        hook = re.sub(r'__', '', hook)
+        outputs['hook'] = hook
     
     # Extract key topics
-    topics_match = re.search(r'KEY_TOPICS:(.*?)(?=TIMESTAMPS:|KEYWORDS:|NEWSLETTER|$)', 
+    topics_match = re.search(r'KEY_TOPICS:(.*?)(?=TIMESTAMPS:|PANELISTS:|KEYWORDS:|NEWSLETTER|$)', 
                             response_text, re.DOTALL | re.IGNORECASE)
     if topics_match:
-        outputs['key_topics'] = topics_match.group(1).strip()
+        topics = topics_match.group(1).strip()
+        # Remove markdown formatting
+        topics = re.sub(r'\*\*', '', topics)
+        topics = re.sub(r'__', '', topics)
+        outputs['key_topics'] = topics
     
     # Extract timestamps
-    timestamps_match = re.search(r'TIMESTAMPS:(.*?)(?=KEYWORDS:|NEWSLETTER|$)', 
+    timestamps_match = re.search(r'TIMESTAMPS:(.*?)(?=PANELISTS:|KEYWORDS:|NEWSLETTER|$)', 
                                 response_text, re.DOTALL | re.IGNORECASE)
     if timestamps_match:
-        outputs['timestamps'] = timestamps_match.group(1).strip()
+        timestamps = timestamps_match.group(1).strip()
+        # Remove markdown formatting
+        timestamps = re.sub(r'\*\*', '', timestamps)
+        timestamps = re.sub(r'__', '', timestamps)
+        outputs['timestamps'] = timestamps
+    
+    # Extract panelists
+    panelists_match = re.search(r'PANELISTS:(.*?)(?=KEYWORDS:|NEWSLETTER|$)', 
+                               response_text, re.DOTALL | re.IGNORECASE)
+    if panelists_match:
+        panelists = panelists_match.group(1).strip()
+        # Remove markdown formatting
+        panelists = re.sub(r'\*\*', '', panelists)
+        panelists = re.sub(r'__', '', panelists)
+        outputs['panelists'] = panelists
     
     # Extract keywords
     keywords_match = re.search(r'KEYWORDS:(.*?)(?=NEWSLETTER|$)', 
@@ -291,13 +332,25 @@ def parse_response(response_text):
         keywords_raw = keywords_match.group(1).strip()
         # Clean up keywords - remove hashtags if present, ensure comma separation
         keywords_raw = keywords_raw.replace('#', '').strip()
+        # Remove markdown formatting
+        keywords_raw = re.sub(r'\*\*', '', keywords_raw)
+        keywords_raw = re.sub(r'__', '', keywords_raw)
+        # Take only the first line if there are multiple lines
+        keywords_lines = keywords_raw.split('\n')
+        keywords_raw = keywords_lines[0].strip()
+        # Remove any trailing numbers or periods (like "3.")
+        keywords_raw = re.sub(r'\s*\d+\.\s*$', '', keywords_raw)
         outputs['keywords'] = keywords_raw
     
     # Extract newsletter article
     newsletter_match = re.search(r'NEWSLETTER ARTICLE:(.*?)$', 
                                 response_text, re.DOTALL | re.IGNORECASE)
     if newsletter_match:
-        outputs['newsletter'] = newsletter_match.group(1).strip()
+        newsletter = newsletter_match.group(1).strip()
+        # Remove markdown formatting
+        newsletter = re.sub(r'\*\*', '', newsletter)
+        newsletter = re.sub(r'__', '', newsletter)
+        outputs['newsletter'] = newsletter
     
     return outputs
 
@@ -325,7 +378,12 @@ def populate_template(template, outputs):
     description = template.replace('{{HOOK}}', outputs['hook'])
     description = description.replace('{{KEY_TOPICS}}', outputs['key_topics'])
     description = description.replace('{{TIMESTAMPS}}', outputs['timestamps'])
+    description = description.replace('{{PANELISTS}}', outputs['panelists'])
     description = description.replace('{{KEYWORDS}}', outputs['keywords'])
+    
+    # Also handle case variations
+    description = description.replace('{{Panelists}}', outputs['panelists'])
+    
     return description
 
 def save_outputs(outputs, output_dir, base_filename, selected_title, description_text):
@@ -348,11 +406,12 @@ def save_outputs(outputs, output_dir, base_filename, selected_title, description
     with open(desc_file, 'w') as f:
         f.write(description_text)
     
-    # Save keywords separately
+    # Save keywords separately (only once)
     keywords_file = transcript_dir / "keywords.txt"
     with open(keywords_file, 'w') as f:
         f.write("=== KEYWORDS (comma-separated) ===\n\n")
         f.write(outputs['keywords'])
+        f.write("\n")
     
     # Save newsletter article
     newsletter_file = transcript_dir / "newsletter_article.txt"
@@ -366,6 +425,7 @@ def save_outputs(outputs, output_dir, base_filename, selected_title, description
         f.write(f"HOOK:\n{outputs['hook']}\n\n")
         f.write(f"KEY TOPICS:\n{outputs['key_topics']}\n\n")
         f.write(f"TIMESTAMPS:\n{outputs['timestamps']}\n\n")
+        f.write(f"PANELISTS:\n{outputs['panelists']}\n\n")
         f.write(f"KEYWORDS:\n{outputs['keywords']}\n")
     
     # Save full response for reference
@@ -373,7 +433,6 @@ def save_outputs(outputs, output_dir, base_filename, selected_title, description
     with open(full_file, 'w') as f:
         f.write(f"=== SELECTED TITLE ===\n\n{selected_title}")
         f.write(f"\n\n=== YOUTUBE DESCRIPTION (with template) ===\n\n{description_text}")
-        f.write(f"\n\n=== KEYWORDS ===\n\n{outputs['keywords']}")
         f.write(f"\n\n=== NEWSLETTER ARTICLE ===\n\n{outputs['newsletter']}")
     
     print(f"  ✓ Outputs saved to: {transcript_dir}")
