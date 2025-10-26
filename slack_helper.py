@@ -114,7 +114,9 @@ class SlackHelper:
 _Waiting for your response..._"""
 
         self.send_message(text)
-        return self.last_message_ts  # Return timestamp for polling
+        # Return the THREAD timestamp, not the message timestamp
+        # This is needed for polling replies
+        return self.thread_ts
 
     def poll_for_response(self, message_ts=None, timeout_seconds=None):
         """
