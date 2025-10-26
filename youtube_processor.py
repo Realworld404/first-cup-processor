@@ -93,8 +93,16 @@ Format: Start with "TIMESTAMPS:" then list timestamps like:
 00:00 - Introduction
 05:23 - [Panel discussion topic name]
 12:45 - [Panel discussion topic name]
-25:00 - Transition to Main Session
+25:00 - [Create an enticing teaser about the main session - extract the most interesting/compelling topic or guest from that section]
 [Include ALL timestamps from the transcript]
+
+IMPORTANT for the LAST timestamp (main session teaser):
+- DO NOT just say "Transition to Main Session" or "Main Session Begins"
+- Extract something SPECIFIC and INTERESTING from the main session portion
+- Make it enticing so viewers want to watch through to the end
+- Examples: "25:00 - Why 87% of AI Projects Fail (Main Session Preview)"
+- Examples: "26:30 - Special Guest: Sarah Chen on Enterprise AI Strategy"
+- Examples: "25:15 - The Controversial Take That Changes Everything"
 
 D) PANELISTS (List of panelists who participated in this episode)
 Format: Start with "PANELISTS:" then list each panelist with their name and title/company:
