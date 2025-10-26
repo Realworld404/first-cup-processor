@@ -7,21 +7,29 @@
 
 ---
 
+Thanks to all of our sponsors! Please visit them, learn about them and thank them for supporting Product Coffee!
+
+Podium Studios - https://thepodium.studio
+PrizePicks - https://www.prizepicks.com/careers
+Product Growth Leaders - https://productgrowthleaders.com
+The Brave Start - https://thebravestart.com
+Career Whisperer - https://careerwhisperer.co
+Feature Upvote - https://www.featureupvote.com
+Play Me Again Pianos - https://playmeagainpianos.org
+
 🎙️ ABOUT FIRST CUP:
-First Cup is our weekly panel discussion where we dive deep into the latest trends, challenges, and opportunities in [YOUR INDUSTRY/TOPIC]. Join us every [DAY] at [TIME] for thoughtful conversation and actionable insights.
+First Cup is our weekly panel discussion where we dive deep into the latest trends, challenges, and opportunities in Product Management. Join us every Wednesday for a rich, delicious cup of Product Management.
 
 👥 PANELISTS:
-[List your regular panelists or leave blank to customize per episode]
+{{Panelists}}
 
 🔗 LINKS & RESOURCES:
-• Our Website: [YOUR WEBSITE]
-• Newsletter: [NEWSLETTER LINK]
-• Community: [DISCORD/SLACK/COMMUNITY LINK]
+• https://productcoffee.com
 
 📱 CONNECT WITH US:
-• Twitter: [YOUR TWITTER]
-• LinkedIn: [YOUR LINKEDIN]
-• Instagram: [YOUR INSTAGRAM]
+• Twitter: https://x.com/product_coffee
+• LinkedIn: https://www.linkedin.com/company/productcoffee
+• Instagram: https://www.instagram.com/product.coffee/
 
 💬 JOIN THE CONVERSATION:
 What's your take on this topic? Drop a comment below and let us know your thoughts!
@@ -32,11 +40,8 @@ What's your take on this topic? Drop a comment below and let us know your though
 • Hit the bell icon for notifications
 • Share with someone who needs to hear this
 
-🎯 NEXT EPISODE:
-[Teaser for next week's topic - customize per episode]
-
 ---
 
-#FirstCup #YourBrandName
+#FirstCup #ProductCoffee
 
 Keywords: {{KEYWORDS}}
