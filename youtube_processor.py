@@ -8,21 +8,6 @@ Watches a directory for new transcript files and automatically generates:
 
 Usage:
     python youtube_processor.py /path/to/transcripts /path/to/outputs
-
-Copyright (C) 2025 Jason Brett
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
 import os
@@ -60,6 +45,15 @@ def create_prompt(transcript):
     """Create the mega-prompt for Claude"""
     return f"""Analyze this YouTube show transcript and create three deliverables:
 
+IMPORTANT CONTEXT ABOUT THE SHOW FORMAT:
+This is "First Cup" - a panel discussion show. The main content (approximately the first 25 minutes) is a panel discussion on a specific topic. In the last ~5 minutes, there is a transition/teaser for the main session that follows.
+
+CRITICAL INSTRUCTIONS:
+- The TITLES should focus ONLY on the First Cup panel discussion topic (first 25 minutes)
+- The DESCRIPTION should focus ONLY on the First Cup panel discussion
+- The teaser/transition to the main session should be included in the timestamps section but should NOT be described in the main description text or key topics
+- The NEWSLETTER should focus ONLY on the First Cup panel discussion
+
 TRANSCRIPT:
 {transcript}
 
@@ -70,7 +64,8 @@ Create 5 title options that are:
 - Keyword-rich for SEO
 - Optimized for virality (curiosity gap, emotional trigger, or bold claim)
 - Under 60 characters
-- Accurately represent the content
+- Focused ONLY on the First Cup panel discussion topic (NOT the teaser/main session at the end)
+- Accurately represent the panel discussion content
 
 Format each on a new line as:
 TITLE 1: [title]
@@ -81,26 +76,29 @@ TITLE 5: [title]
 
 2. YOUTUBE DESCRIPTION
 Write a compelling description including:
-- Hook paragraph (2-3 sentences) that entices viewers
-- Key topics covered (3-5 bullet points with brief descriptions)
+- Hook paragraph (2-3 sentences) that entices viewers about the PANEL DISCUSSION topic
+- Key topics covered in the PANEL DISCUSSION ONLY (3-5 bullet points with brief descriptions)
+- DO NOT describe the teaser/main session content in the main description
 - Chapter breaks with timestamps in this EXACT format:
   00:00 - Introduction
-  05:23 - [Topic name]
-  12:45 - [Topic name]
-  [derive timestamps and topics from the transcript content]
+  05:23 - [Panel discussion topic name]
+  12:45 - [Panel discussion topic name]
+  25:00 - Transition to Main Session (or similar - include this timestamp but keep it brief)
+  [derive all timestamps and topics from the transcript content]
 - Call to action (subscribe, like, comment)
-- 5-10 relevant hashtags
+- 5-10 relevant hashtags related to the PANEL DISCUSSION topic
 
 Start this section with "YOUTUBE DESCRIPTION:" header.
 
 3. NEWSLETTER ARTICLE
 Write a 200-300 word newsletter article that:
-- Opens with an engaging hook that creates curiosity
-- Summarizes the main discussion in 2-3 paragraphs
-- Highlights ONE specific, actionable key takeaway
+- Opens with an engaging hook that creates curiosity about the PANEL DISCUSSION
+- Summarizes the PANEL DISCUSSION ONLY in 2-3 paragraphs
+- DO NOT mention or describe the teaser/main session at the end
+- Highlights ONE specific, actionable key takeaway from the PANEL DISCUSSION
 - Ends with a clear CTA to watch the full video on YouTube
 - Uses a conversational, friendly tone (not overly promotional)
-- Include a suggested subject line at the top
+- Include a suggested subject line at the top focused on the panel discussion topic
 
 Start this section with "NEWSLETTER ARTICLE:" header.
 
@@ -140,13 +138,13 @@ def parse_response(response_text):
     outputs['titles'] = titles
     
     # Extract YouTube description
-    desc_match = re.search(r'YOUTUBE DESCRIPTION:(.*?)(?=NEWSLETTER ARTICLE:|$)', 
+    desc_match = re.search(r'YOUTUBE DESCRIPTION:(.*?)(?=NEWSLETTER ARTICLE:|$)',
                           response_text, re.DOTALL | re.IGNORECASE)
     if desc_match:
         outputs['description'] = desc_match.group(1).strip()
     
     # Extract newsletter article
-    newsletter_match = re.search(r'NEWSLETTER ARTICLE:(.*?)$', 
+    newsletter_match = re.search(r'NEWSLETTER ARTICLE:(.*?)$',
                                 response_text, re.DOTALL | re.IGNORECASE)
     if newsletter_match:
         outputs['newsletter'] = newsletter_match.group(1).strip()
