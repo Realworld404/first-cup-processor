@@ -23,10 +23,16 @@ class SlackHelper:
         self.user_id = user_id or os.environ.get('SLACK_USER_ID', '')
         self.enabled = bool(self.webhook_url and self.bot_token and self.user_id)
         self.last_message_ts = None  # Track message timestamp for threading
+        self.thread_ts = None  # Track the main thread timestamp for entire conversation
 
     def is_enabled(self):
         """Check if Slack integration is properly configured"""
         return self.enabled
+
+    def start_new_thread(self):
+        """Reset thread tracking for a new processing session"""
+        self.thread_ts = None
+        self.last_message_ts = None
 
     def send_webhook(self, text, blocks=None):
         """Send message via webhook (simple, no threading)"""
@@ -44,7 +50,7 @@ class SlackHelper:
             print(f"❌ Slack webhook error: {e}")
             return False
 
-    def send_message(self, text, blocks=None, channel=None):
+    def send_message(self, text, blocks=None, channel=None, in_thread=True):
         """Send message using bot token (supports threading)"""
         if not self.bot_token:
             return None
@@ -63,13 +69,22 @@ class SlackHelper:
         if blocks:
             payload["blocks"] = blocks
 
+        # Add to thread if we have a thread_ts and in_thread is True
+        if in_thread and self.thread_ts:
+            payload["thread_ts"] = self.thread_ts
+
         try:
             response = requests.post(url, headers=headers, json=payload)
             data = response.json()
 
             if data.get("ok"):
-                # Store message timestamp for threading
+                # Store message timestamp
                 self.last_message_ts = data.get("ts")
+
+                # If this is the first message (no thread_ts yet), set it as the thread root
+                if not self.thread_ts:
+                    self.thread_ts = data.get("ts")
+
                 return data
             else:
                 print(f"❌ Slack API error: {data.get('error')}")
@@ -101,13 +116,18 @@ _Waiting for your response..._"""
         self.send_message(text)
         return self.last_message_ts  # Return timestamp for polling
 
-    def poll_for_response(self, message_ts, timeout_seconds=None):
+    def poll_for_response(self, message_ts=None, timeout_seconds=None):
         """
-        Poll Slack for user's response to title selection
+        Poll Slack for user's response to title selection in the thread
         Returns: (response_text, response_type) or (None, None) if timeout
         response_type: 'number', 'feedback', 'custom_title', or 'timeout'
         """
-        if not self.bot_token or not message_ts:
+        if not self.bot_token:
+            return None, None
+
+        # Use thread_ts if no specific message_ts provided
+        thread_ts_to_use = message_ts or self.thread_ts
+        if not thread_ts_to_use:
             return None, None
 
         url = "https://slack.com/api/conversations.replies"
@@ -117,7 +137,7 @@ _Waiting for your response..._"""
 
         params = {
             "channel": self.user_id,
-            "ts": message_ts,
+            "ts": thread_ts_to_use,
             "limit": 10
         }
 

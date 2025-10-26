@@ -663,8 +663,9 @@ def process_transcript_file(filepath, output_dir, api_key, template_path, exampl
     """Process a single transcript file"""
     print(f"\n📄 Processing: {filepath.name}")
 
-    # Notify via Slack if enabled
+    # Start a new thread for this transcript (keeps each processing session organized)
     if slack and slack.is_enabled():
+        slack.start_new_thread()
         slack.notify_processing_start(filepath.name)
 
     try:
