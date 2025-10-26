@@ -105,7 +105,11 @@ def save_processed_file(output_dir, filename):
 
 def create_prompt(transcript, newsletter_examples=None):
     """Create the mega-prompt for Claude"""
-    
+
+    # Get current date for context
+    current_date = datetime.now().strftime('%Y-%m-%d')
+    current_year = datetime.now().year
+
     # Add newsletter examples if provided
     examples_section = ""
     if newsletter_examples:
@@ -123,8 +127,11 @@ Use these examples to understand:
 - Subject line patterns
 - How to create curiosity and value
 """
-    
+
     return f"""Analyze this YouTube show transcript and create three deliverables:
+
+CURRENT DATE CONTEXT:
+Today's date is {current_date}. The current year is {current_year}. DO NOT reference years like 2024 unless they are explicitly mentioned in the transcript. When discussing current trends or future predictions, use the correct year ({current_year}) or say "this year" instead of assuming 2024.
 
 IMPORTANT CONTEXT ABOUT THE SHOW FORMAT:
 This is "First Cup" - a panel discussion show. The main content (approximately the first 25 minutes) is a panel discussion on a specific topic. In the last ~5 minutes, there is a transition/teaser for the main session that follows.
@@ -228,9 +235,16 @@ Please format your response with clear section headers so outputs can be easily 
 def get_titles_from_claude(transcript, api_key, feedback=None, newsletter_examples=None):
     """Get title options from Claude, optionally with feedback for iteration"""
     client = anthropic.Anthropic(api_key=api_key)
-    
+
+    # Get current date for context
+    current_date = datetime.now().strftime('%Y-%m-%d')
+    current_year = datetime.now().year
+
     if feedback:
         prompt = f"""Based on this transcript, generate 5 NEW title options incorporating this feedback:
+
+CURRENT DATE CONTEXT:
+Today's date is {current_date}. The current year is {current_year}. DO NOT reference 2024 unless explicitly in the transcript. Use {current_year} or "this year" for current/future references.
 
 FEEDBACK: {feedback}
 
@@ -255,6 +269,9 @@ TITLE 4: [title]
 TITLE 5: [title]"""
     else:
         prompt = f"""Analyze this transcript and create 5 title options:
+
+CURRENT DATE CONTEXT:
+Today's date is {current_date}. The current year is {current_year}. DO NOT reference 2024 unless explicitly in the transcript. Use {current_year} or "this year" for current/future references.
 
 TRANSCRIPT:
 {transcript}
