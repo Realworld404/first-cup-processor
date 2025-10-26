@@ -6,8 +6,18 @@ Watches a directory for new transcript files and automatically generates:
 2. YouTube description with timestamps
 3. Newsletter article
 
+Supports Slack integration for interactive title selection and notifications.
+
 Usage:
     python youtube_processor.py /path/to/transcripts /path/to/outputs
+    python youtube_processor.py --test-slack  # Test Slack connection
+
+TODO: Future Enhancement - Create macOS menubar app for drag-and-drop processing
+      with visual status updates and quick access to outputs. Would provide:
+      - Drag transcript file onto menubar icon to process
+      - Live processing status in menubar
+      - Click to view/copy outputs
+      - Settings panel for configuration
 """
 
 import os
@@ -18,6 +28,14 @@ import re
 from pathlib import Path
 from datetime import datetime
 import anthropic
+
+# Import Slack helper (optional - gracefully handles if not available)
+try:
+    from slack_helper import SlackHelper
+    SLACK_AVAILABLE = True
+except ImportError:
+    SLACK_AVAILABLE = False
+    print("⚠️  Slack integration not available (slack_helper.py not found)")
 
 # Configuration - will be loaded from config.json
 ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
@@ -41,6 +59,12 @@ def load_config():
         "api": {
             "model": "claude-sonnet-4-20250514",
             "watch_interval": 10
+        },
+        "slack": {
+            "enabled": False,
+            "webhook_url": "",
+            "bot_token": "",
+            "user_id": ""
         }
     }
 
@@ -309,14 +333,27 @@ TITLE 5: [title]"""
     
     return titles
 
-def interactive_title_selection(transcript, api_key, newsletter_examples=None):
-    """Interactive title selection with iteration capability and custom title support"""
+def interactive_title_selection(transcript, api_key, newsletter_examples=None, slack=None, filename=""):
+    """Interactive title selection with iteration capability and custom title support
+
+    Supports both CLI and Slack interaction modes.
+    """
     print("\n" + "="*60)
     print("TITLE SELECTION")
     print("="*60)
 
     titles = get_titles_from_claude(transcript, api_key, newsletter_examples=newsletter_examples)
 
+    # Slack mode
+    if slack and slack.is_enabled():
+        return interactive_title_selection_slack(titles, transcript, api_key, newsletter_examples, slack, filename)
+
+    # CLI mode (original)
+    return interactive_title_selection_cli(titles, transcript, api_key, newsletter_examples)
+
+
+def interactive_title_selection_cli(titles, transcript, api_key, newsletter_examples):
+    """CLI-based title selection (original behavior)"""
     while True:
         print("\n📝 Title Options:\n")
         for i, title in enumerate(titles, 1):
@@ -375,6 +412,47 @@ def interactive_title_selection(transcript, api_key, newsletter_examples=None):
 
         else:
             print("⚠️  Invalid choice. Please try again.")
+
+
+def interactive_title_selection_slack(titles, transcript, api_key, newsletter_examples, slack, filename):
+    """Slack-based title selection"""
+    while True:
+        # Send title options to Slack
+        message_ts = slack.send_title_options(titles, filename)
+
+        if not message_ts:
+            print("⚠️  Failed to send Slack message, falling back to CLI mode")
+            return interactive_title_selection_cli(titles, transcript, api_key, newsletter_examples)
+
+        # Poll for response (wait indefinitely)
+        response, response_type = slack.poll_for_response(message_ts, timeout_seconds=None)
+
+        if response_type == 'number':
+            # User selected a number
+            selected_index = int(response) - 1
+            selected_title = titles[selected_index]
+            slack.notify_title_selected(selected_title)
+            print(f"  ✅ Selected via Slack: {selected_title}")
+            return selected_title
+
+        elif response_type == 'custom_title':
+            # User specified a custom title
+            custom_title = to_title_case(response)
+            slack.notify_title_selected(custom_title)
+            print(f"  ✅ Custom title via Slack: {custom_title}")
+            return custom_title
+
+        elif response_type == 'feedback':
+            # User wants new titles based on feedback
+            slack.notify_generating_new_titles()
+            print(f"  🔄 Generating new titles based on feedback: {response}")
+            titles = get_titles_from_claude(transcript, api_key, response, newsletter_examples)
+            # Loop continues with new titles
+
+        else:
+            # Shouldn't happen with infinite wait, but handle gracefully
+            print("⚠️  No response received from Slack")
+            return None
 
 def process_with_claude(transcript, api_key, selected_title, newsletter_examples=None):
     """Send transcript to Claude and get processed outputs with the selected title"""
@@ -581,102 +659,152 @@ def save_outputs(outputs, output_dir, base_filename, selected_title, description
     print(f"  ✓ Outputs saved to: {transcript_dir}")
     return transcript_dir
 
-def process_transcript_file(filepath, output_dir, api_key, template_path, examples_path):
+def process_transcript_file(filepath, output_dir, api_key, template_path, examples_path, slack=None):
     """Process a single transcript file"""
     print(f"\n📄 Processing: {filepath.name}")
-    
-    # Read transcript
-    with open(filepath, 'r', encoding='utf-8') as f:
-        transcript = f.read()
-    
-    print(f"  Transcript length: {len(transcript)} characters")
-    
-    # Load newsletter examples
-    newsletter_examples = load_newsletter_examples(examples_path)
-    if newsletter_examples:
-        print(f"  📚 Using newsletter examples for style matching")
-    
-    # Interactive title selection
-    selected_title = interactive_title_selection(transcript, api_key, newsletter_examples)
-    
-    if selected_title is None:
-        print("\n⚠️  Skipping this file (user cancelled)")
-        return None
-    
-    # Process with Claude using the selected title and examples
-    response = process_with_claude(transcript, api_key, selected_title, newsletter_examples)
-    
-    # Parse response into components
-    outputs = parse_response(response)
-    
-    # Load and populate template
-    template = load_template(template_path)
-    description_text = populate_template(template, outputs)
-    
-    # Save outputs including the populated description
-    base_filename = filepath.stem
-    output_path = save_outputs(outputs, output_dir, base_filename, selected_title, description_text)
-    
-    # Mark as processed
-    save_processed_file(output_dir, filepath.name)
-    
-    print(f"\n  ✅ Complete!")
-    return output_path
 
-def watch_directory(watch_dir, output_dir, api_key, template_path, examples_path):
+    # Notify via Slack if enabled
+    if slack and slack.is_enabled():
+        slack.notify_processing_start(filepath.name)
+
+    try:
+        # Read transcript
+        with open(filepath, 'r', encoding='utf-8') as f:
+            transcript = f.read()
+
+        print(f"  Transcript length: {len(transcript)} characters")
+
+        # Load newsletter examples
+        newsletter_examples = load_newsletter_examples(examples_path)
+        if newsletter_examples:
+            print(f"  📚 Using newsletter examples for style matching")
+
+        # Interactive title selection (supports both CLI and Slack)
+        selected_title = interactive_title_selection(
+            transcript,
+            api_key,
+            newsletter_examples,
+            slack=slack,
+            filename=filepath.name
+        )
+
+        if selected_title is None:
+            print("\n⚠️  Skipping this file (user cancelled)")
+            if slack and slack.is_enabled():
+                slack.notify_cancelled(filepath.name)
+            return None
+
+        # Process with Claude using the selected title and examples
+        response = process_with_claude(transcript, api_key, selected_title, newsletter_examples)
+
+        # Parse response into components
+        outputs = parse_response(response)
+
+        # Load and populate template
+        template = load_template(template_path)
+        description_text = populate_template(template, outputs)
+
+        # Save outputs including the populated description
+        base_filename = filepath.stem
+        output_path = save_outputs(outputs, output_dir, base_filename, selected_title, description_text)
+
+        # Mark as processed
+        save_processed_file(output_dir, filepath.name)
+
+        print(f"\n  ✅ Complete!")
+
+        # Notify completion via Slack
+        if slack and slack.is_enabled():
+            slack.notify_completion(str(output_path), filepath.name)
+
+        return output_path
+
+    except Exception as e:
+        print(f"\n  ❌ Error processing {filepath.name}: {e}")
+
+        # Notify error via Slack
+        if slack and slack.is_enabled():
+            slack.notify_error(filepath.name, str(e))
+
+        raise
+
+def watch_directory(watch_dir, output_dir, api_key, template_path, examples_path, config=None):
     """Watch directory for new transcript files"""
     watch_path = Path(watch_dir)
     output_path = Path(output_dir)
-    
+
     # Create output directory if it doesn't exist
     output_path.mkdir(parents=True, exist_ok=True)
-    
+
+    # Initialize Slack helper if configured
+    slack = None
+    if config and SLACK_AVAILABLE:
+        slack_config = config.get('slack', {})
+        if slack_config.get('enabled'):
+            slack = SlackHelper(
+                webhook_url=slack_config.get('webhook_url'),
+                bot_token=slack_config.get('bot_token'),
+                user_id=slack_config.get('user_id')
+            )
+            if slack.is_enabled():
+                print(f"✅ Slack integration enabled")
+            else:
+                print(f"⚠️  Slack enabled in config but missing credentials")
+                slack = None
+
     # Check for template file
     if template_path.exists():
         print(f"📄 Using template: {template_path}")
     else:
         print(f"⚠️  Template not found at {template_path}")
         print(f"   Using basic default template")
-    
+
     # Check for newsletter examples
     if examples_path.exists():
         print(f"📚 Using newsletter examples: {examples_path}")
     else:
         print(f"ℹ️  No newsletter examples found at {examples_path}")
         print(f"   Will generate newsletters without style examples")
-    
+
     print(f"👀 Watching directory: {watch_path}")
     print(f"📁 Output directory: {output_path}")
     print(f"⏱️  Checking every {WATCH_INTERVAL} seconds...")
     print(f"\n🔔 Waiting for transcript files (.txt, .md, .json)...\n")
-    
+
     processed = load_processed_files(output_dir)
-    
+
     while True:
         try:
             # Find all transcript files
             transcript_files = []
             for ext in ['*.txt', '*.md', '*.json']:
                 transcript_files.extend(watch_path.glob(ext))
-            
+
             # Process new files
             for filepath in transcript_files:
                 if filepath.name == PROCESSED_FILE:
                     continue
-                
+
                 # Skip the template and examples files
                 if filepath.name == template_path.name or filepath.name == examples_path.name:
                     continue
-                    
+
                 if filepath.name not in processed:
                     try:
-                        process_transcript_file(filepath, output_dir, api_key, template_path, examples_path)
+                        process_transcript_file(
+                            filepath,
+                            output_dir,
+                            api_key,
+                            template_path,
+                            examples_path,
+                            slack=slack
+                        )
                         processed.append(filepath.name)
                     except Exception as e:
                         print(f"  ❌ Error processing {filepath.name}: {e}")
-            
+
             time.sleep(WATCH_INTERVAL)
-            
+
         except KeyboardInterrupt:
             print("\n\n👋 Stopping watcher. Goodbye!")
             break
@@ -689,6 +817,53 @@ def main():
     # Load configuration
     config = load_config()
 
+    # Check for special commands
+    if len(sys.argv) == 2:
+        if sys.argv[1] == '--test-slack':
+            # Test Slack integration
+            if not SLACK_AVAILABLE:
+                print("❌ Slack integration not available")
+                print("   Make sure slack_helper.py exists and requests is installed")
+                sys.exit(1)
+
+            slack_config = config.get('slack', {})
+            if not slack_config.get('enabled'):
+                print("❌ Slack is not enabled in config.json")
+                print("   Set slack.enabled to true and add your credentials")
+                sys.exit(1)
+
+            slack = SlackHelper(
+                webhook_url=slack_config.get('webhook_url'),
+                bot_token=slack_config.get('bot_token'),
+                user_id=slack_config.get('user_id')
+            )
+
+            success, message = slack.test_connection()
+            if success:
+                print(f"✅ {message}")
+                sys.exit(0)
+            else:
+                print(f"❌ {message}")
+                sys.exit(1)
+
+        elif sys.argv[1] in ['-h', '--help', 'help']:
+            print("Usage: python youtube_processor.py [watch_directory] [output_directory] [template_file]")
+            print("\n🔧 Configuration:")
+            print("   • Uses config.json for default paths")
+            print("   • Command-line args override config.json")
+            print("\n📖 Examples:")
+            print("   python youtube_processor.py                    # Use config.json defaults")
+            print("   python youtube_processor.py ./transcripts ./outputs")
+            print("   python youtube_processor.py ./transcripts ./outputs ./my_template.txt")
+            print("   python youtube_processor.py --test-slack       # Test Slack integration")
+            print("\n🔑 Environment:")
+            print("   export ANTHROPIC_API_KEY='your-api-key-here'")
+            print("\n📄 Template placeholders:")
+            print("   {{HOOK}}, {{KEY_TOPICS}}, {{TIMESTAMPS}}, {{PANELISTS}}, {{KEYWORDS}}")
+            print("\n💬 Slack Integration:")
+            print("   See SLACK_SETUP_GUIDE.md for setup instructions")
+            sys.exit(0)
+
     # Command-line arguments override config
     if len(sys.argv) >= 3:
         watch_dir = sys.argv[1]
@@ -696,20 +871,6 @@ def main():
         print(f"📝 Using command-line directories:")
         print(f"   Watch: {watch_dir}")
         print(f"   Output: {output_dir}")
-    elif len(sys.argv) == 2 and sys.argv[1] in ['-h', '--help', 'help']:
-        print("Usage: python youtube_processor.py [watch_directory] [output_directory] [template_file]")
-        print("\n🔧 Configuration:")
-        print("   • Uses config.json for default paths")
-        print("   • Command-line args override config.json")
-        print("\n📖 Examples:")
-        print("   python youtube_processor.py                    # Use config.json defaults")
-        print("   python youtube_processor.py ./transcripts ./outputs")
-        print("   python youtube_processor.py ./transcripts ./outputs ./my_template.txt")
-        print("\n🔑 Environment:")
-        print("   export ANTHROPIC_API_KEY='your-api-key-here'")
-        print("\n📄 Template placeholders:")
-        print("   {{HOOK}}, {{KEY_TOPICS}}, {{TIMESTAMPS}}, {{PANELISTS}}, {{KEYWORDS}}")
-        sys.exit(0)
     else:
         # Use config.json defaults
         script_dir = Path(__file__).parent
@@ -761,8 +922,8 @@ def main():
     print("🎬 YouTube Transcript Processor")
     print("=" * 60)
 
-    # Start watching
-    watch_directory(watch_dir, output_dir, ANTHROPIC_API_KEY, template_path, examples_path)
+    # Start watching (pass config for Slack integration)
+    watch_directory(watch_dir, output_dir, ANTHROPIC_API_KEY, template_path, examples_path, config=config)
 
 if __name__ == "__main__":
     main()

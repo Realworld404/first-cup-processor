@@ -10,5 +10,12 @@
   "api": {
     "model": "claude-sonnet-4-20250514",
     "watch_interval": 10
+  },
+  "slack": {
+    "enabled": false,
+    "webhook_url": "",
+    "bot_token": "",
+    "user_id": "",
+    "comment": "Set enabled to true and add your tokens. Get these from https://api.slack.com/apps. See SLACK_SETUP_GUIDE.md for instructions."
   }
 }

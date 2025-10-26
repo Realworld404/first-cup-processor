@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Label: Unique identifier for this Launch Agent -->
+    <key>Label</key>
+    <string>com.productcoffee.firstcup</string>
+
+    <!-- Program: Path to Python and the script -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/python3</string>
+        <string>SCRIPT_PATH_PLACEHOLDER/youtube_processor.py</string>
+    </array>
+
+    <!-- Working Directory: Where the script runs from -->
+    <key>WorkingDirectory</key>
+    <string>SCRIPT_PATH_PLACEHOLDER</string>
+
+    <!-- Environment Variables -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>ANTHROPIC_API_KEY</key>
+        <string>API_KEY_PLACEHOLDER</string>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+
+    <!-- Watch Paths: Trigger when files are added to this directory -->
+    <key>WatchPaths</key>
+    <array>
+        <string>TRANSCRIPTS_PATH_PLACEHOLDER</string>
+    </array>
+
+    <!-- Run at Load: Start when user logs in -->
+    <key>RunAtLoad</key>
+    <false/>
+
+    <!-- Throttle Interval: Minimum seconds between runs (prevent rapid firing) -->
+    <key>ThrottleInterval</key>
+    <integer>5</integer>
+
+    <!-- Standard Output and Error Logs -->
+    <key>StandardOutPath</key>
+    <string>SCRIPT_PATH_PLACEHOLDER/logs/stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>SCRIPT_PATH_PLACEHOLDER/logs/stderr.log</string>
+
+    <!-- Keep Alive: Don't keep running, just trigger on file changes -->
+    <key>KeepAlive</key>
+    <false/>
+
+    <!-- Process Type: Run in background -->
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>

@@ -4,50 +4,70 @@ Automatically process YouTube transcripts to generate SEO-optimized titles, desc
 
 **Cost**: ~$0.15-0.30 per 30-minute episode
 
+## ✨ New Features
+
+- 🤖 **Slack Integration** - Get title options and send responses via Slack
+- 🚀 **Auto-trigger** - macOS Launch Agent runs automatically when you drop files
+- ⚡ **Interactive Title Selection** - Choose or customize titles before processing
+- ☕ **First Cup Optimized** - Prompts tuned for Product Coffee's panel format
+- 📝 **Template System** - Customizable YouTube description templates
+- 🎯 **~150 word newsletters** - Concise, punchy newsletter articles
+
 ## 📦 What's Included
 
 ### Core Files
-- **`youtube_processor.py`** - Main Python script that watches for transcripts and processes them
-- **`setup.sh`** - Automated setup script (recommended starting point)
-- **`requirements.txt`** - Python dependencies
-- **`SETUP_GUIDE.md`** - Complete documentation with troubleshooting
+- **`youtube_processor.py`** - Main Python script with Slack integration
+- **`slack_helper.py`** - Slack notification and polling system
+- **`config.json`** - Configuration for paths, Slack, and API settings
+- **`install_launch_agent.sh`** - One-command installation for auto-triggering
+- **`requirements.txt`** - Python dependencies (anthropic, requests)
 
-### n8n Workflow
-- **`n8n_workflow.json`** - Import this into n8n for full automation
+### Documentation
+- **`SLACK_SETUP_GUIDE.md`** - Complete Slack app setup walkthrough
+- **`LAUNCH_AGENT_GUIDE.md`** - Auto-trigger setup and management
+- **`SETUP_GUIDE.md`** - General setup and troubleshooting
+- **`TEMPLATE_GUIDE.md`** - Customize YouTube description templates
+
+### Automation Options
+- **`com.productcoffee.firstcup.plist`** - macOS Launch Agent configuration
+- **`n8n_workflow.json`** - Alternative: n8n workflow automation
 
 ### Testing
 - **`sample_transcript.txt`** - Example transcript to test the system
+- **`newsletter_examples.md`** - Style examples for AI to match
 
-## 🚀 Quick Start (2 minutes)
+## 🚀 Quick Start
 
-### Option 1: Automated Setup (Recommended)
+### Option 1: Full Automation with Slack (Recommended)
 
+**Step 1: Install Launch Agent**
 ```bash
-./setup.sh
+./install_launch_agent.sh
 ```
 
-This will:
-1. Check Python installation
-2. Install dependencies
-3. Set up your API key
-4. Create necessary directories
-5. Optionally test with sample transcript
+**Step 2: Set up Slack** (optional but recommended)
+- Follow `SLACK_SETUP_GUIDE.md` to create Slack app
+- Update `config.json` with your Slack credentials
+- Test: `python3 youtube_processor.py --test-slack`
 
-### Option 2: Manual Setup
+**Step 3: Process transcripts**
+```bash
+# Just drop a file - that's it!
+cp your-transcript.txt ./transcripts/
+# Get notification in Slack, select title, done!
+```
+
+### Option 2: Manual Mode (No automation)
 
 ```bash
-# 1. Install dependencies
-pip install anthropic --break-system-packages
+# Run manually (uses config.json paths)
+python3 youtube_processor.py
 
-# 2. Set API key
-export ANTHROPIC_API_KEY='your-api-key-here'
-
-# 3. Create directories
-mkdir -p ~/youtube_transcripts ~/youtube_outputs
-
-# 4. Run the processor
-python3 youtube_processor.py ~/youtube_transcripts ~/youtube_outputs
+# Or specify custom paths
+python3 youtube_processor.py ./my-transcripts ./my-outputs
 ```
+
+Interact via CLI to select titles.
 
 ## 📖 How It Works
 
