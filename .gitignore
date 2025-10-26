@@ -178,3 +178,10 @@ credentials.json
 # Local development
 .local/
 local/
+
+# First Cup Processor working directories
+transcripts/*
+!transcripts/.gitkeep
+outputs/*
+!outputs/.gitkeep
+.processed_transcripts.json

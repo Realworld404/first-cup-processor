@@ -1,0 +1,14 @@
+{
+  "directories": {
+    "transcripts": "./transcripts",
+    "outputs": "./outputs"
+  },
+  "templates": {
+    "youtube_description": "./youtube_description_template.txt",
+    "newsletter_examples": "./newsletter_examples.md"
+  },
+  "api": {
+    "model": "claude-sonnet-4-20250514",
+    "watch_interval": 10
+  }
+}

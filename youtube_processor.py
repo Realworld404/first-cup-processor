@@ -19,10 +19,72 @@ from pathlib import Path
 from datetime import datetime
 import anthropic
 
-# Configuration
+# Configuration - will be loaded from config.json
 ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
 WATCH_INTERVAL = 10  # seconds between directory checks
 PROCESSED_FILE = '.processed_transcripts.json'
+
+def load_config():
+    """Load configuration from config.json"""
+    config_path = Path(__file__).parent / "config.json"
+
+    # Default configuration
+    default_config = {
+        "directories": {
+            "transcripts": "./transcripts",
+            "outputs": "./outputs"
+        },
+        "templates": {
+            "youtube_description": "./youtube_description_template.txt",
+            "newsletter_examples": "./newsletter_examples.md"
+        },
+        "api": {
+            "model": "claude-sonnet-4-20250514",
+            "watch_interval": 10
+        }
+    }
+
+    if config_path.exists():
+        try:
+            with open(config_path, 'r') as f:
+                config = json.load(f)
+                # Merge with defaults for any missing keys
+                for key in default_config:
+                    if key not in config:
+                        config[key] = default_config[key]
+                return config
+        except Exception as e:
+            print(f"⚠️  Error loading config.json: {e}")
+            print(f"   Using default configuration")
+            return default_config
+    else:
+        print(f"⚠️  config.json not found, using default configuration")
+        return default_config
+
+def to_title_case(text):
+    """Convert text to proper title case with smart handling of common words"""
+    # Words that should be lowercase in titles (unless first/last word)
+    lowercase_words = {
+        'a', 'an', 'and', 'as', 'at', 'but', 'by', 'for', 'in', 'of',
+        'on', 'or', 'the', 'to', 'with', 'vs', 'via'
+    }
+
+    words = text.split()
+    if not words:
+        return text
+
+    result = []
+    for i, word in enumerate(words):
+        # First and last words are always capitalized
+        if i == 0 or i == len(words) - 1:
+            result.append(word.capitalize())
+        # Check if word should be lowercase
+        elif word.lower() in lowercase_words:
+            result.append(word.lower())
+        else:
+            result.append(word.capitalize())
+
+    return ' '.join(result)
 
 def load_processed_files(output_dir):
     """Load list of already processed files"""
@@ -137,16 +199,21 @@ These should be SEO-relevant keywords for the PANEL DISCUSSION topic only.
 IMPORTANT: Put ALL keywords on a single line, comma-separated, with NO extra text or numbering after
 
 3. NEWSLETTER ARTICLE
-Write a 200-300 word newsletter article that:
-- Opens with an engaging hook that creates curiosity about the PANEL DISCUSSION
-- Summarizes the PANEL DISCUSSION ONLY in 2-3 paragraphs
-- DO NOT mention or describe the teaser/main session at the end
-- Highlights ONE specific, actionable key takeaway from the PANEL DISCUSSION
-- Ends with a clear CTA to watch the full video on YouTube
-- Uses a conversational, friendly tone (not overly promotional)
-- Include a suggested subject line at the top focused on the panel discussion topic
+Write a ~150 word newsletter article that:
+- Opens with a header formatted EXACTLY as: ☕️ First Cup: [Teasing Title That Creates Curiosity]
+- Recaps the First Cup panel discussion segment
+- Includes context about the topic/prompt discussed
+- Highlights key discussion points with specific examples
+- Features ONE compelling quote from a panelist when possible (use actual names)
+- Presents contrasting perspectives when they occurred
+- Ends with a clear, actionable key takeaway
+- Includes a CTA to watch the full video on YouTube
+- Uses a conversational, engaging tone
 - Use plain text only - NO markdown formatting like ** or __
+- Include a suggested email subject line at the very top (before the article)
 {f"- IMPORTANT: Match the style, tone, and structure shown in the newsletter examples above" if newsletter_examples else ""}
+
+CRITICAL: Keep the article to approximately 150 words. Be concise and punchy.
 
 Start this section with "NEWSLETTER ARTICLE:" header.
 
@@ -226,52 +293,69 @@ TITLE 5: [title]"""
     return titles
 
 def interactive_title_selection(transcript, api_key, newsletter_examples=None):
-    """Interactive title selection with iteration capability"""
+    """Interactive title selection with iteration capability and custom title support"""
     print("\n" + "="*60)
     print("TITLE SELECTION")
     print("="*60)
-    
+
     titles = get_titles_from_claude(transcript, api_key, newsletter_examples=newsletter_examples)
-    
+
     while True:
         print("\n📝 Title Options:\n")
         for i, title in enumerate(titles, 1):
             print(f"  {i}. {title}")
-        
+
         print("\n" + "-"*60)
         print("Options:")
         print("  • Enter a number (1-5) to select that title")
-        print("  • Enter 'f' to provide feedback and generate new titles")
+        print("  • Enter 'f' to provide feedback OR specify a custom title")
         print("  • Enter 'q' to quit without processing")
         print("-"*60)
-        
+
         choice = input("\nYour choice: ").strip().lower()
-        
+
         if choice == 'q':
             print("\n❌ Processing cancelled.")
             return None
-        
+
         elif choice == 'f':
-            print("\n💬 Provide feedback for title generation:")
-            print("   (e.g., 'Focus more on AI', 'Make it more specific', 'Too generic')")
-            feedback = input("\nFeedback: ").strip()
-            
-            if feedback:
+            print("\n💬 Provide feedback or specify a custom title:")
+            print("   • Feedback: 'Focus more on AI', 'Make it more specific', etc.")
+            print("   • Custom title: 'TITLE: Your Exact Title Here'")
+            feedback = input("\nInput: ").strip()
+
+            if not feedback:
+                print("⚠️  No input provided, keeping current titles.")
+                continue
+
+            # Check if user is specifying a custom title
+            if feedback.lower().startswith('title:'):
+                custom_title = feedback[6:].strip()  # Remove 'title:' prefix
+
+                # Apply proper title case
+                custom_title = to_title_case(custom_title)
+
+                print(f"\n✅ Using your custom title: {custom_title}")
+                confirm = input("\n🔍 Confirm this title? (y/n): ").strip().lower()
+                if confirm == 'y':
+                    return custom_title
+                else:
+                    print("\n↩️  Let's try again...")
+            else:
+                # Regular feedback - generate new titles
                 print("\n🔄 Generating new titles based on your feedback...")
                 titles = get_titles_from_claude(transcript, api_key, feedback, newsletter_examples)
-            else:
-                print("⚠️  No feedback provided, keeping current titles.")
-        
+
         elif choice.isdigit() and 1 <= int(choice) <= 5:
             selected_title = titles[int(choice) - 1]
             print(f"\n✅ Selected: {selected_title}")
-            
+
             confirm = input("\n🔍 Confirm this title? (y/n): ").strip().lower()
             if confirm == 'y':
                 return selected_title
             else:
                 print("\n↩️  Let's choose again...")
-        
+
         else:
             print("⚠️  Invalid choice. Please try again.")
 
@@ -585,56 +669,81 @@ def watch_directory(watch_dir, output_dir, api_key, template_path, examples_path
 
 def main():
     """Main entry point"""
-    if len(sys.argv) < 3:
-        print("Usage: python youtube_processor.py <watch_directory> <output_directory> [template_file]")
-        print("\nExample:")
-        print("  python youtube_processor.py ./transcripts ./processed")
-        print("  python youtube_processor.py ./transcripts ./processed ./my_template.txt")
-        print("\nMake sure to set ANTHROPIC_API_KEY environment variable:")
-        print("  export ANTHROPIC_API_KEY='your-api-key-here'")
-        print("\nTemplate file should contain placeholders:")
-        print("  {{HOOK}}, {{KEY_TOPICS}}, {{TIMESTAMPS}}, {{KEYWORDS}}")
-        sys.exit(1)
-    
-    watch_dir = sys.argv[1]
-    output_dir = sys.argv[2]
-    
-    # Check for custom template, otherwise use default
+    # Load configuration
+    config = load_config()
+
+    # Command-line arguments override config
+    if len(sys.argv) >= 3:
+        watch_dir = sys.argv[1]
+        output_dir = sys.argv[2]
+        print(f"📝 Using command-line directories:")
+        print(f"   Watch: {watch_dir}")
+        print(f"   Output: {output_dir}")
+    elif len(sys.argv) == 2 and sys.argv[1] in ['-h', '--help', 'help']:
+        print("Usage: python youtube_processor.py [watch_directory] [output_directory] [template_file]")
+        print("\n🔧 Configuration:")
+        print("   • Uses config.json for default paths")
+        print("   • Command-line args override config.json")
+        print("\n📖 Examples:")
+        print("   python youtube_processor.py                    # Use config.json defaults")
+        print("   python youtube_processor.py ./transcripts ./outputs")
+        print("   python youtube_processor.py ./transcripts ./outputs ./my_template.txt")
+        print("\n🔑 Environment:")
+        print("   export ANTHROPIC_API_KEY='your-api-key-here'")
+        print("\n📄 Template placeholders:")
+        print("   {{HOOK}}, {{KEY_TOPICS}}, {{TIMESTAMPS}}, {{PANELISTS}}, {{KEYWORDS}}")
+        sys.exit(0)
+    else:
+        # Use config.json defaults
+        script_dir = Path(__file__).parent
+        watch_dir = (script_dir / config['directories']['transcripts']).resolve()
+        output_dir = (script_dir / config['directories']['outputs']).resolve()
+        print(f"📝 Using config.json directories:")
+        print(f"   Watch: {watch_dir}")
+        print(f"   Output: {output_dir}")
+
+    # Check for custom template from command-line, otherwise use config
     if len(sys.argv) >= 4:
         template_file = sys.argv[3]
     else:
-        # Look for template in the watch directory
-        template_file = Path(watch_dir) / "youtube_description_template.txt"
-        if not template_file.exists():
-            # Try current directory
-            template_file = Path("youtube_description_template.txt")
-    
+        script_dir = Path(__file__).parent
+        template_file = script_dir / config['templates']['youtube_description']
+
     template_path = Path(template_file)
-    
-    # Look for newsletter examples file
-    examples_file = Path(watch_dir) / "newsletter_examples.md"
-    if not examples_file.exists():
-        # Try current directory
-        examples_file = Path("newsletter_examples.md")
-    
-    examples_path = Path(examples_file)
-    
+
+    # Look for newsletter examples file from config
+    script_dir = Path(__file__).parent
+    examples_path = script_dir / config['templates']['newsletter_examples']
+
     # Check for API key
     if not ANTHROPIC_API_KEY:
         print("❌ Error: ANTHROPIC_API_KEY environment variable not set")
         print("\nSet it with:")
         print("  export ANTHROPIC_API_KEY='your-api-key-here'")
         sys.exit(1)
-    
-    # Validate directories
-    if not Path(watch_dir).exists():
-        print(f"❌ Error: Watch directory does not exist: {watch_dir}")
-        sys.exit(1)
-    
+
+    # Validate/create directories
+    watch_path = Path(watch_dir)
+    output_path = Path(output_dir)
+
+    if not watch_path.exists():
+        print(f"⚠️  Watch directory does not exist: {watch_dir}")
+        create = input(f"   Create it? (y/n): ").strip().lower()
+        if create == 'y':
+            watch_path.mkdir(parents=True, exist_ok=True)
+            print(f"   ✓ Created: {watch_dir}")
+        else:
+            print(f"❌ Cannot proceed without watch directory")
+            sys.exit(1)
+
+    if not output_path.exists():
+        output_path.mkdir(parents=True, exist_ok=True)
+        print(f"✓ Created output directory: {output_dir}")
+
     print("=" * 60)
     print("🎬 YouTube Transcript Processor")
     print("=" * 60)
-    
+
     # Start watching
     watch_directory(watch_dir, output_dir, ANTHROPIC_API_KEY, template_path, examples_path)
 
