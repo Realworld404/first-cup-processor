@@ -1,0 +1,72 @@
+00:00 - Introduction
+
+Hey everyone, welcome back to the show! This week we're diving into something that's been on my mind for a while - the future of AI agents and how they're going to change the way we work in 2025. I'm really excited about this topic because I think we're at an inflection point where AI is moving from being a cool tool to being a genuine productivity multiplier.
+
+02:15 - The Current State of AI Tools
+
+So let's start with where we are today. Most of us are using AI tools like ChatGPT, Claude, or other language models as glorified search engines or writing assistants. You ask a question, you get an answer. You need help with an email, it helps you write it. That's great, but it's still very manual. You're still the one driving the bus, so to speak.
+
+But what's starting to happen now, and what I think is going to explode in 2025, is the move toward true AI agents - systems that can take a goal from you and then go off and complete complex, multi-step tasks without you having to hold their hand through every step.
+
+05:30 - What Makes an AI Agent Different
+
+The key difference between a tool and an agent is autonomy. An AI tool waits for your input at every step. An AI agent can plan, execute, course-correct, and iterate toward a goal with minimal supervision. Think about the difference between a calculator and a personal accountant. The calculator is a tool - you need to know what buttons to press. An accountant is more like an agent - you tell them your financial goals and they figure out the steps to get you there.
+
+We're seeing early examples of this with tools like AutoGPT, BabyAGI, and some of the newer implementations from OpenAI and Anthropic. These systems can break down a complex task into subtasks, execute each one, check if they succeeded, and adapt their approach if something didn't work.
+
+09:45 - Real World Applications
+
+Let me give you some concrete examples of what I mean. Imagine you're running a small business and you tell your AI agent: "I need to prepare for our quarterly board meeting." In the past, you'd have to manually pull financial reports, create slides, draft talking points, and so on. An AI agent could potentially:
+
+- Query your accounting software for the latest financial data
+- Generate charts and visualizations
+- Draft a PowerPoint presentation with key metrics
+- Write speaking notes for each slide
+- Even anticipate likely questions from board members and prepare responses
+
+Or let's say you're a content creator like me. Instead of manually transcribing videos, writing descriptions, creating social posts, and scheduling everything - you could have an agent that watches your upload folder, processes new content, generates all the marketing materials, and schedules posts across platforms. That's exactly the kind of workflow I'm building right now, actually.
+
+14:20 - The Technical Enablers
+
+What's making this possible now? There are a few key technical advances:
+
+First, context windows have gotten huge. Modern AI models can handle 100,000, 200,000, even a million tokens of context. That means they can keep track of complex, long-running tasks without forgetting what they were doing.
+
+Second, function calling and tool use has matured. Models can now reliably call APIs, run code, search databases, and use various software tools. They're not just text generators anymore - they're systems that can interact with the digital world.
+
+Third, we're seeing better reasoning and planning capabilities. Models are getting better at breaking down complex problems, thinking through edge cases, and adapting when their initial plan doesn't work.
+
+18:00 - The Challenges We Still Face
+
+Now, I don't want to paint too rosy a picture. There are real challenges. The biggest one is reliability. These systems still make mistakes. They might misunderstand instructions, choose the wrong tool, or get stuck in loops. For critical tasks, you still need human oversight.
+
+There's also the question of cost. Running an AI agent that makes dozens of API calls to complete a task can get expensive quickly. The economics need to improve before this becomes truly mainstream.
+
+And then there are all the ethical and safety questions. Who's responsible when an AI agent makes a mistake that costs money or causes harm? How do we ensure these systems respect privacy and security boundaries? These aren't just technical problems - they're societal ones.
+
+22:15 - What to Expect in 2025
+
+So what do I think we'll see in the next year? I think we're going to see a explosion of specialized AI agents for specific workflows. Instead of one general-purpose assistant, you might have:
+
+- A coding agent that understands your codebase and can implement features
+- A customer service agent that can handle routine inquiries 
+- A research agent that can gather information and synthesize reports
+- A personal assistant agent that manages your calendar, email, and tasks
+
+I also think we'll see better infrastructure for running and monitoring these agents. Right now it's kind of the Wild West - everyone's building their own systems. We need better frameworks, better observability tools, and better ways to ensure these agents are doing what we actually want them to do.
+
+26:30 - The Key Takeaway
+
+Here's my big takeaway for you: if you're in any field that involves knowledge work - writing, analysis, research, coordination - now is the time to start experimenting with AI agents. Not in a year, not in six months, but now. The people who figure out how to effectively delegate tasks to AI agents are going to have a massive productivity advantage.
+
+And I don't just mean using them - I mean understanding their limitations, learning how to write good instructions, figuring out which tasks are good candidates for automation and which ones still need a human touch. This is a skill that's going to be as fundamental as using email or spreadsheets.
+
+28:45 - Wrapping Up
+
+That's all I've got for today. I'd love to hear your thoughts on this. Are you already using AI agents? What tasks would you want to delegate first? Drop a comment below and let me know.
+
+If you found this valuable, please hit that like button and subscribe if you haven't already. And if you want to dive deeper into this stuff, I'm building out a whole series on practical AI automation. You won't want to miss it.
+
+Thanks for watching, and I'll see you next week!
+
+29:30 - [End]
