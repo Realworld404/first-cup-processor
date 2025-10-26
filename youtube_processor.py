@@ -41,8 +41,27 @@ def save_processed_file(output_dir, filename):
         with open(processed_file, 'w') as f:
             json.dump(processed, f, indent=2)
 
-def create_prompt(transcript):
+def create_prompt(transcript, newsletter_examples=None):
     """Create the mega-prompt for Claude"""
+    
+    # Add newsletter examples if provided
+    examples_section = ""
+    if newsletter_examples:
+        examples_section = f"""
+
+NEWSLETTER WRITING EXAMPLES:
+Below are examples of high-quality newsletter articles in the desired style and tone. Study these examples and match this style when creating the newsletter article.
+
+{newsletter_examples}
+
+Use these examples to understand:
+- The conversational, engaging tone
+- How to use specific names and examples
+- The structure and flow
+- Subject line patterns
+- How to create curiosity and value
+"""
+    
     return f"""Analyze this YouTube show transcript and create three deliverables:
 
 IMPORTANT CONTEXT ABOUT THE SHOW FORMAT:
@@ -58,6 +77,7 @@ CRITICAL INSTRUCTIONS:
 
 TRANSCRIPT:
 {transcript}
+{examples_section}
 
 DELIVERABLES:
 
@@ -126,6 +146,7 @@ Write a 200-300 word newsletter article that:
 - Uses a conversational, friendly tone (not overly promotional)
 - Include a suggested subject line at the top focused on the panel discussion topic
 - Use plain text only - NO markdown formatting like ** or __
+{f"- IMPORTANT: Match the style, tone, and structure shown in the newsletter examples above" if newsletter_examples else ""}
 
 Start this section with "NEWSLETTER ARTICLE:" header.
 
@@ -137,7 +158,7 @@ CRITICAL FORMATTING REMINDERS:
 
 Please format your response with clear section headers so outputs can be easily parsed."""
 
-def get_titles_from_claude(transcript, api_key, feedback=None):
+def get_titles_from_claude(transcript, api_key, feedback=None, newsletter_examples=None):
     """Get title options from Claude, optionally with feedback for iteration"""
     client = anthropic.Anthropic(api_key=api_key)
     
@@ -204,13 +225,13 @@ TITLE 5: [title]"""
     
     return titles
 
-def interactive_title_selection(transcript, api_key):
+def interactive_title_selection(transcript, api_key, newsletter_examples=None):
     """Interactive title selection with iteration capability"""
     print("\n" + "="*60)
     print("TITLE SELECTION")
     print("="*60)
     
-    titles = get_titles_from_claude(transcript, api_key)
+    titles = get_titles_from_claude(transcript, api_key, newsletter_examples=newsletter_examples)
     
     while True:
         print("\n📝 Title Options:\n")
@@ -237,7 +258,7 @@ def interactive_title_selection(transcript, api_key):
             
             if feedback:
                 print("\n🔄 Generating new titles based on your feedback...")
-                titles = get_titles_from_claude(transcript, api_key, feedback)
+                titles = get_titles_from_claude(transcript, api_key, feedback, newsletter_examples)
             else:
                 print("⚠️  No feedback provided, keeping current titles.")
         
@@ -254,11 +275,11 @@ def interactive_title_selection(transcript, api_key):
         else:
             print("⚠️  Invalid choice. Please try again.")
 
-def process_with_claude(transcript, api_key, selected_title):
+def process_with_claude(transcript, api_key, selected_title, newsletter_examples=None):
     """Send transcript to Claude and get processed outputs with the selected title"""
     client = anthropic.Anthropic(api_key=api_key)
     
-    prompt = create_prompt(transcript)
+    prompt = create_prompt(transcript, newsletter_examples)
     
     # Add the selected title to the prompt
     prompt = f"""{prompt}
@@ -381,6 +402,19 @@ def load_template(template_path):
 Keywords: {{KEYWORDS}}
 """
 
+def load_newsletter_examples(examples_path):
+    """Load newsletter examples for few-shot learning"""
+    if examples_path.exists():
+        with open(examples_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+            # Only return the examples section, not the instructions
+            # Look for actual examples (marked with "## Example")
+            if "## Example 1:" in content:
+                return content
+            else:
+                return None
+    return None
+
 def populate_template(template, outputs):
     """Populate the template with parsed outputs"""
     description = template.replace('{{HOOK}}', outputs['hook'])
@@ -446,7 +480,7 @@ def save_outputs(outputs, output_dir, base_filename, selected_title, description
     print(f"  ✓ Outputs saved to: {transcript_dir}")
     return transcript_dir
 
-def process_transcript_file(filepath, output_dir, api_key, template_path):
+def process_transcript_file(filepath, output_dir, api_key, template_path, examples_path):
     """Process a single transcript file"""
     print(f"\n📄 Processing: {filepath.name}")
     
@@ -456,15 +490,20 @@ def process_transcript_file(filepath, output_dir, api_key, template_path):
     
     print(f"  Transcript length: {len(transcript)} characters")
     
+    # Load newsletter examples
+    newsletter_examples = load_newsletter_examples(examples_path)
+    if newsletter_examples:
+        print(f"  📚 Using newsletter examples for style matching")
+    
     # Interactive title selection
-    selected_title = interactive_title_selection(transcript, api_key)
+    selected_title = interactive_title_selection(transcript, api_key, newsletter_examples)
     
     if selected_title is None:
         print("\n⚠️  Skipping this file (user cancelled)")
         return None
     
-    # Process with Claude using the selected title
-    response = process_with_claude(transcript, api_key, selected_title)
+    # Process with Claude using the selected title and examples
+    response = process_with_claude(transcript, api_key, selected_title, newsletter_examples)
     
     # Parse response into components
     outputs = parse_response(response)
@@ -483,7 +522,7 @@ def process_transcript_file(filepath, output_dir, api_key, template_path):
     print(f"\n  ✅ Complete!")
     return output_path
 
-def watch_directory(watch_dir, output_dir, api_key, template_path):
+def watch_directory(watch_dir, output_dir, api_key, template_path, examples_path):
     """Watch directory for new transcript files"""
     watch_path = Path(watch_dir)
     output_path = Path(output_dir)
@@ -497,6 +536,13 @@ def watch_directory(watch_dir, output_dir, api_key, template_path):
     else:
         print(f"⚠️  Template not found at {template_path}")
         print(f"   Using basic default template")
+    
+    # Check for newsletter examples
+    if examples_path.exists():
+        print(f"📚 Using newsletter examples: {examples_path}")
+    else:
+        print(f"ℹ️  No newsletter examples found at {examples_path}")
+        print(f"   Will generate newsletters without style examples")
     
     print(f"👀 Watching directory: {watch_path}")
     print(f"📁 Output directory: {output_path}")
@@ -517,13 +563,13 @@ def watch_directory(watch_dir, output_dir, api_key, template_path):
                 if filepath.name == PROCESSED_FILE:
                     continue
                 
-                # Skip the template file
-                if filepath.name == template_path.name:
+                # Skip the template and examples files
+                if filepath.name == template_path.name or filepath.name == examples_path.name:
                     continue
                     
                 if filepath.name not in processed:
                     try:
-                        process_transcript_file(filepath, output_dir, api_key, template_path)
+                        process_transcript_file(filepath, output_dir, api_key, template_path, examples_path)
                         processed.append(filepath.name)
                     except Exception as e:
                         print(f"  ❌ Error processing {filepath.name}: {e}")
@@ -565,6 +611,14 @@ def main():
     
     template_path = Path(template_file)
     
+    # Look for newsletter examples file
+    examples_file = Path(watch_dir) / "newsletter_examples.md"
+    if not examples_file.exists():
+        # Try current directory
+        examples_file = Path("newsletter_examples.md")
+    
+    examples_path = Path(examples_file)
+    
     # Check for API key
     if not ANTHROPIC_API_KEY:
         print("❌ Error: ANTHROPIC_API_KEY environment variable not set")
@@ -582,7 +636,7 @@ def main():
     print("=" * 60)
     
     # Start watching
-    watch_directory(watch_dir, output_dir, ANTHROPIC_API_KEY, template_path)
+    watch_directory(watch_dir, output_dir, ANTHROPIC_API_KEY, template_path, examples_path)
 
 if __name__ == "__main__":
     main()
