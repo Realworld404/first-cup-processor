@@ -1,229 +1,238 @@
-# 🎬 YouTube Transcript Processor
+# 🎬 First Cup Processor
 
-Automatically process YouTube transcripts to generate SEO-optimized titles, descriptions, and newsletter articles using Claude AI.
+Automated YouTube transcript processing with Slack integration and macOS auto-triggering. Generates SEO-optimized titles, descriptions, and newsletter articles using Claude AI.
 
 **Cost**: ~$0.15-0.30 per 30-minute episode
 
-## ✨ New Features
+## ✨ Features
 
-- 🤖 **Slack Integration** - Get title options and send responses via Slack
+- 🤖 **Slack Integration** - Interactive title selection via Slack (mobile-friendly)
 - 🚀 **Auto-trigger** - macOS Launch Agent runs automatically when you drop files
-- ⚡ **Interactive Title Selection** - Choose or customize titles before processing
-- ☕ **First Cup Optimized** - Prompts tuned for Product Coffee's panel format
+- ⚡ **Interactive Selection** - Choose from 5 titles, request new ones, or provide custom titles
+- ☕ **First Cup Optimized** - Prompts tuned for Product Coffee's panel discussion format
 - 📝 **Template System** - Customizable YouTube description templates
-- 🎯 **~150 word newsletters** - Concise, punchy newsletter articles
-
-## 📦 What's Included
-
-### Core Files
-- **`youtube_processor.py`** - Main Python script with Slack integration
-- **`slack_helper.py`** - Slack notification and polling system
-- **`config.json`** - Configuration for paths, Slack, and API settings
-- **`install_launch_agent.sh`** - One-command installation for auto-triggering
-- **`requirements.txt`** - Python dependencies (anthropic, requests)
-
-### Documentation
-- **`SLACK_SETUP_GUIDE.md`** - Complete Slack app setup walkthrough
-- **`LAUNCH_AGENT_GUIDE.md`** - Auto-trigger setup and management
-- **`SETUP_GUIDE.md`** - General setup and troubleshooting
-- **`TEMPLATE_GUIDE.md`** - Customize YouTube description templates
-
-### Automation Options
-- **`com.productcoffee.firstcup.plist`** - macOS Launch Agent configuration
-- **`n8n_workflow.json`** - Alternative: n8n workflow automation
-
-### Testing
-- **`sample_transcript.txt`** - Example transcript to test the system
-- **`newsletter_examples.md`** - Style examples for AI to match
+- 🎯 **Markdown Newsletters** - ~150 word articles with bold, italics, and hyperlinks
+- 📊 **Organized Outputs** - All files neatly organized per episode
 
 ## 🚀 Quick Start
 
-### Option 1: Full Automation with Slack (Recommended)
+### 1. Install Dependencies
 
-**Step 1: Install Launch Agent**
+```bash
+# Install Python packages (Anaconda recommended)
+pip install anthropic requests
+```
+
+### 2. Configure API Key
+
+Create `.env` file:
+```bash
+ANTHROPIC_API_KEY=your-key-here
+```
+
+### 3. Configure Settings
+
+Edit `config.json`:
+```json
+{
+  "directories": {
+    "transcripts": "./transcripts",
+    "outputs": "./outputs"
+  },
+  "templates": {
+    "youtube_description": "./youtube_description_template.txt",
+    "newsletter_examples": "./newsletter_examples.md"
+  },
+  "api": {
+    "model": "claude-sonnet-4-20250514",
+    "watch_interval": 10
+  },
+  "slack": {
+    "enabled": false
+  }
+}
+```
+
+### 4. Install Launch Agent (Optional but Recommended)
+
 ```bash
 ./install_launch_agent.sh
 ```
 
-**Step 2: Set up Slack** (optional but recommended)
-- Follow `SLACK_SETUP_GUIDE.md` to create Slack app
-- Update `config.json` with your Slack credentials
-- Test: `python3 youtube_processor.py --test-slack`
+This sets up automatic processing when you drop files into `./transcripts/`
 
-**Step 3: Process transcripts**
-```bash
-# Just drop a file - that's it!
-cp your-transcript.txt ./transcripts/
-# Get notification in Slack, select title, done!
-```
-
-### Option 2: Manual Mode (No automation)
+### 5. Test It
 
 ```bash
-# Run manually (uses config.json paths)
-python3 youtube_processor.py
-
-# Or specify custom paths
-python3 youtube_processor.py ./my-transcripts ./my-outputs
+# Copy sample to trigger processing
+cp sample_transcript.txt transcripts/
 ```
-
-Interact via CLI to select titles.
 
 ## 📖 How It Works
 
-1. **Drop** a transcript file (.txt, .md, or .json) into the watched folder
-2. **Process** happens automatically via Claude API
-3. **Get** organized outputs:
-   - 5 title options
-   - YouTube description with timestamps
-   - Newsletter article
-   - Full response for reference
+1. **Drop** a transcript file (.txt, .md, or .json) into `./transcripts/`
+2. **Select** your preferred title (via Slack or CLI)
+3. **Get** organized outputs in `./outputs/[episode_name]/`:
+   - `SELECTED_TITLE.txt` - Your chosen title
+   - `youtube_description.txt` - Complete description with timestamps
+   - `newsletter_article.txt` - Markdown-formatted newsletter
+   - `keywords.txt` - SEO keywords
+   - `description_components.txt` - Raw AI components
+
+## 🤖 Slack Integration (Optional)
+
+Get mobile notifications and respond from anywhere.
+
+**Setup:**
+1. Follow `SLACK_SETUP_GUIDE.md` to create a Slack app
+2. Add credentials to `config.json`
+3. Test: The system will send title options to Slack and wait for your response
+
+**Benefits:**
+- Respond from your phone
+- All messages threaded per episode
+- Visual progress updates
+- Error notifications
+
+See `SLACK_SETUP_GUIDE.md` for detailed setup.
+
+## 🚀 Launch Agent (macOS)
+
+Automatically process transcripts when files are added - no manual start needed.
+
+**Install:**
+```bash
+./install_launch_agent.sh
+```
+
+**Manage:**
+```bash
+# Check status
+launchctl list | grep firstcup
+
+# Restart after code changes
+launchctl unload ~/Library/LaunchAgents/com.productcoffee.firstcup.plist
+launchctl load ~/Library/LaunchAgents/com.productcoffee.firstcup.plist
+
+# View logs
+tail -f logs/processor_stdout.log
+tail -f logs/processor_stderr.log
+```
+
+See `LAUNCH_AGENT_GUIDE.md` for details.
+
+## 🎨 Customization
+
+### Templates
+
+Edit `youtube_description_template.txt` to customize your YouTube descriptions:
+- Add your branding and links
+- Include sponsor mentions
+- Customize CTAs
+- Change formatting
+
+See `TEMPLATE_GUIDE.md` for details.
+
+### Newsletter Style
+
+Add examples to `newsletter_examples.md` - the AI learns from your style and matches it.
+
+### Prompts
+
+Edit `youtube_processor.py` to adjust:
+- Article length
+- Number of title options
+- Tone and style
+- Output format
 
 ## 🎯 What You Get
 
-### 1. Title Options (5 choices)
-SEO-optimized, viral-friendly titles under 60 characters
+### Title Options
+5 SEO-optimized, viral-friendly titles under 60 characters each. Interactive selection with:
+- Choose from 1-5
+- Type `f` + feedback to generate new options
+- Type `TITLE: Your Custom Title` to specify exactly what you want
 
-### 2. YouTube Description
-- Compelling hook
+### YouTube Description
+- Engaging hook (2-3 sentences)
 - Key topics with bullet points
-- Chapter timestamps
-- Call-to-action
-- Relevant hashtags
+- Chapter timestamps extracted from transcript
+- Panelist information
+- SEO keywords (comma-separated, no hashtags)
+- Your custom branding (from template)
 
-### 3. Newsletter Article
-- Engaging 200-300 word summary
-- One key takeaway
-- CTA to drive YouTube views
-- Suggested subject line
+### Newsletter Article
+- ~150 words, concise and punchy
+- Formatted with **bold**, *italics*, and [hyperlinks]()
+- Subject line included
+- Follows style from `newsletter_examples.md`
+- Header format: `☕️ First Cup: [Title]`
 
-## 💰 Cost Comparison
-
-| Solution | Monthly Cost | Setup Time |
-|----------|-------------|------------|
-| **This (n8n + Claude)** | ~$1 | 10 min |
-| Zapier + OpenAI | $25-50 | 5 min |
-| Zapier + Claude | $25-30 | 5 min |
-| Manual work | $0 (+ 2 hrs/episode) | 0 min |
-
-## 📁 File Structure
-
-After processing, outputs are organized like this:
+## 📁 Project Structure
 
 ```
-youtube_outputs/
-└── episode_name_20241025_143022/
-    ├── titles.txt
-    ├── youtube_description.txt
-    ├── newsletter_article.txt
-    └── full_response.txt
+first-cup-processor/
+├── youtube_processor.py          # Main processor
+├── slack_helper.py                # Slack integration
+├── config.json                    # Configuration
+├── .env                           # API keys
+├── requirements.txt               # Dependencies
+├── install_launch_agent.sh        # Auto-install script
+├── run_processor.sh               # Launch Agent wrapper
+├── com.productcoffee.firstcup.plist  # Launch Agent config
+├── youtube_description_template.txt  # Description template
+├── newsletter_examples.md         # Newsletter style examples
+├── sample_transcript.txt          # Test file
+├── transcripts/                   # Drop files here
+├── outputs/                       # Processed results
+├── logs/                          # Application logs
+├── SLACK_SETUP_GUIDE.md          # Slack setup walkthrough
+├── LAUNCH_AGENT_GUIDE.md         # Launch Agent details
+└── TEMPLATE_GUIDE.md             # Template customization
 ```
-
-## 🔧 Two Deployment Options
-
-### Python Script (Simple)
-- ✅ Works immediately
-- ✅ No additional software needed
-- ✅ Easy to customize
-- ❌ Must keep terminal open (or use screen/systemd)
-
-### n8n Workflow (Advanced)
-- ✅ Fully automated background processing
-- ✅ Visual workflow editor
-- ✅ Easy to extend (add YouTube upload, email sending, etc.)
-- ❌ Requires Docker
-- ❌ Slight learning curve
-
-## 📚 Documentation
-
-See **`SETUP_GUIDE.md`** for:
-- Detailed setup instructions
-- Troubleshooting guide
-- Customization options
-- Integration ideas (YouTube auto-upload, newsletter automation, etc.)
-- Cost optimization tips
-- Running as background service
-
-## 🎬 Example Output
-
-Drop in a 30-minute show transcript and get outputs like:
-
-**Titles**:
-1. "AI Agents Are About to Change Everything (Here's How)"
-2. "Why 2025 Is the Year of AI Agents | Productivity Revolution"
-3. "Stop Using AI Wrong: The Agent Mindset Explained"
-
-**Description** with timestamps:
-```
-00:00 - Introduction
-02:15 - Current State of AI Tools
-05:30 - What Makes Agents Different
-...
-```
-
-**Newsletter** with hook, summary, and CTA to watch on YouTube.
-
-## 🛠️ Customization
-
-Edit the prompt in `youtube_processor.py` to:
-- Change number of titles (5 → 10)
-- Adjust article length (200-300 → 400-500 words)
-- Add sponsor mentions
-- Include specific hashtags
-- Change tone/style
 
 ## 🆘 Troubleshooting
 
-### "No module named 'anthropic'"
+### Launch Agent Not Triggering
 ```bash
-pip install anthropic --break-system-packages
+# Check if running
+launchctl list | grep firstcup
+
+# Check logs for errors
+tail -50 logs/processor_stderr.log
+
+# Restart
+launchctl unload ~/Library/LaunchAgents/com.productcoffee.firstcup.plist
+launchctl load ~/Library/LaunchAgents/com.productcoffee.firstcup.plist
 ```
 
-### "API key not set"
+### Slack Not Responding
+- Verify bot is invited to channel: `/invite @First Cup Processor`
+- Check `config.json` has correct tokens and channel ID
+- Ensure `slack.enabled` is `true`
+- Test connection (test feature in code)
+
+### Module Not Found
 ```bash
-export ANTHROPIC_API_KEY='sk-ant-...'
+# Use Anaconda Python (if installed)
+/Users/jasonbrett/anaconda3/bin/python3 -m pip install anthropic requests
+
+# Or system Python
+pip3 install anthropic requests
 ```
 
-### Files not processing
-- Check file extensions (.txt, .md, .json)
-- Verify file permissions
-- Check `.processed_transcripts.json` in output dir
+### API Key Not Found
+Ensure `.env` file exists with:
+```
+ANTHROPIC_API_KEY=sk-ant-...
+```
 
-More help in `SETUP_GUIDE.md`
+## 🔗 Documentation
 
-## 🔗 Resources
-
-- [Get Claude API Key](https://console.anthropic.com)
-- [Claude API Docs](https://docs.anthropic.com)
-- [n8n Documentation](https://docs.n8n.io)
-
-## 📝 Requirements
-
-- Python 3.8+
-- Anthropic API key
-- 10MB disk space
-
-## 🎯 Next Steps
-
-1. Run `./setup.sh` to get started
-2. Test with `sample_transcript.txt`
-3. Process your first real transcript
-4. Read `SETUP_GUIDE.md` for advanced features
-5. Consider setting up n8n for full automation
-
-## 💡 Tips
-
-- Start with the Python script to test
-- Use sample transcript to verify everything works
-- Gradually customize the prompts
-- Consider n8n once you're comfortable
-- Check costs in Anthropic console
-
----
-
-**Questions?** Check `SETUP_GUIDE.md` or the Claude API docs.
-
-**Ready?** Run `./setup.sh` and drop in your first transcript! 🚀
+- **`SLACK_SETUP_GUIDE.md`** - Complete Slack app setup
+- **`LAUNCH_AGENT_GUIDE.md`** - Auto-trigger setup and management
+- **`TEMPLATE_GUIDE.md`** - Customize description templates
+- **`newsletter_examples.md`** - Add examples to improve AI output
 
 ## 📄 License
 
