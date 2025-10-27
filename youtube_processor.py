@@ -576,15 +576,28 @@ def parse_response(response_text):
         outputs['keywords'] = keywords_raw
     
     # Extract newsletter article
-    newsletter_match = re.search(r'NEWSLETTER ARTICLE:(.*?)$', 
+    newsletter_match = re.search(r'NEWSLETTER\s+ARTICLE:\s*(.*?)$',
                                 response_text, re.DOTALL | re.IGNORECASE)
     if newsletter_match:
         newsletter = newsletter_match.group(1).strip()
-        # Remove markdown formatting
-        newsletter = re.sub(r'\*\*', '', newsletter)
-        newsletter = re.sub(r'__', '', newsletter)
+        # Keep markdown formatting (bold, italics, links)
         outputs['newsletter'] = newsletter
-    
+        print(f"  ✓ Newsletter article extracted ({len(newsletter)} chars)")
+    else:
+        print("  ⚠️  WARNING: Newsletter article not found in response")
+        print("  Response structure might have changed. Saving what we have...")
+        # Try to extract anything after a newsletter-related header
+        fallback_match = re.search(r'(?:newsletter|article).*?:\s*(.*?)$',
+                                   response_text, re.DOTALL | re.IGNORECASE)
+        if fallback_match:
+            outputs['newsletter'] = fallback_match.group(1).strip()
+            print(f"  ℹ️  Used fallback extraction ({len(outputs['newsletter'])} chars)")
+
+    # Final validation
+    if not outputs['newsletter']:
+        print("  ❌ ERROR: Newsletter article is empty!")
+        print("  This may indicate a parsing issue. Check full_response.txt for the raw output.")
+
     return outputs
 
 def load_template(template_path):
