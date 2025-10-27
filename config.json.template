@@ -13,9 +13,6 @@
   },
   "slack": {
     "enabled": false,
-    "webhook_url": "https://hooks.slack.com/services/YOUR/WEBHOOK/URL",
-    "bot_token": "xoxb-your-bot-token-here",
-    "user_id": "U01234567890",
-    "comment": "Set enabled to true and add your tokens. user_id can be a user ID (DMs) or channel ID (for channel posts). Get these from https://api.slack.com/apps - See SLACK_SETUP_GUIDE.md for instructions."
+    "comment": "Set enabled to true to activate Slack integration. Add your Slack credentials (webhook URL, bot token, user/channel ID) to the .env file. See SLACK_SETUP_GUIDE.md for setup instructions."
   }
 }

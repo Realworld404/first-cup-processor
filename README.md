@@ -23,37 +23,36 @@ Automated YouTube transcript processing with Slack integration and macOS auto-tr
 pip install anthropic requests
 ```
 
-### 2. Configure API Key
+### 2. Configure Secrets
 
-Create `.env` file:
+Copy the template and add your credentials:
 ```bash
-ANTHROPIC_API_KEY=your-key-here
+cp .env.template .env
+```
+
+Edit `.env`:
+```bash
+# Required
+ANTHROPIC_API_KEY=your-api-key-here
+
+# Optional - for Slack integration
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
+SLACK_BOT_TOKEN=xoxb-your-bot-token-here
+SLACK_USER_ID=U01234567890
 ```
 
 ### 3. Configure Settings
 
-Copy the template and customize:
+Copy the template if needed (or use the included config.json):
 ```bash
 cp config.json.template config.json
 ```
 
-Edit `config.json`:
+Edit `config.json` to enable Slack:
 ```json
 {
-  "directories": {
-    "transcripts": "./transcripts",
-    "outputs": "./outputs"
-  },
-  "templates": {
-    "youtube_description": "./youtube_description_template.txt",
-    "newsletter_examples": "./newsletter_examples.md"
-  },
-  "api": {
-    "model": "claude-sonnet-4-20250514",
-    "watch_interval": 10
-  },
   "slack": {
-    "enabled": false
+    "enabled": true
   }
 }
 ```
@@ -89,9 +88,10 @@ cp sample_transcript.txt transcripts/
 Get mobile notifications and respond from anywhere.
 
 **Setup:**
-1. Follow `SLACK_SETUP_GUIDE.md` to create a Slack app
-2. Add credentials to `config.json`
-3. Test: The system will send title options to Slack and wait for your response
+1. Follow `SLACK_SETUP_GUIDE.md` to create a Slack app and get credentials
+2. Add credentials to `.env` file (webhook URL, bot token, user/channel ID)
+3. Enable in `config.json`: set `slack.enabled` to `true`
+4. Test: The system will send title options to Slack and wait for your response
 
 **Benefits:**
 - Respond from your phone
@@ -213,8 +213,8 @@ launchctl load ~/Library/LaunchAgents/com.productcoffee.firstcup.plist
 
 ### Slack Not Responding
 - Verify bot is invited to channel: `/invite @First Cup Processor`
-- Check `config.json` has correct tokens and channel ID
-- Ensure `slack.enabled` is `true`
+- Check `.env` has correct webhook URL, bot token, and user/channel ID
+- Ensure `slack.enabled` is `true` in `config.json`
 - Test connection (test feature in code)
 
 ### Module Not Found
@@ -226,10 +226,15 @@ launchctl load ~/Library/LaunchAgents/com.productcoffee.firstcup.plist
 pip3 install anthropic requests
 ```
 
-### API Key Not Found
-Ensure `.env` file exists with:
-```
+### API Key or Slack Credentials Not Found
+Ensure `.env` file exists with required credentials:
+```bash
 ANTHROPIC_API_KEY=sk-ant-...
+
+# Optional - for Slack
+SLACK_WEBHOOK_URL=https://hooks.slack.com/...
+SLACK_BOT_TOKEN=xoxb-...
+SLACK_USER_ID=C09P4T4NA8H
 ```
 
 ## 🔗 Documentation

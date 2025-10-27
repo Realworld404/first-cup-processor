@@ -174,7 +174,6 @@ Icon
 *.cert
 secrets.yml
 credentials.json
-config.json
 
 # Local development
 .local/

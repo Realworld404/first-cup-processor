@@ -767,11 +767,8 @@ def watch_directory(watch_dir, output_dir, api_key, template_path, examples_path
     if config and SLACK_AVAILABLE:
         slack_config = config.get('slack', {})
         if slack_config.get('enabled'):
-            slack = SlackHelper(
-                webhook_url=slack_config.get('webhook_url'),
-                bot_token=slack_config.get('bot_token'),
-                user_id=slack_config.get('user_id')
-            )
+            # Slack credentials are read from environment variables (.env)
+            slack = SlackHelper()
             if slack.is_enabled():
                 print(f"✅ Slack integration enabled")
             else:
@@ -855,14 +852,11 @@ def main():
             slack_config = config.get('slack', {})
             if not slack_config.get('enabled'):
                 print("❌ Slack is not enabled in config.json")
-                print("   Set slack.enabled to true and add your credentials")
+                print("   Set slack.enabled to true and add credentials to .env")
                 sys.exit(1)
 
-            slack = SlackHelper(
-                webhook_url=slack_config.get('webhook_url'),
-                bot_token=slack_config.get('bot_token'),
-                user_id=slack_config.get('user_id')
-            )
+            # Slack credentials are read from environment variables (.env)
+            slack = SlackHelper()
 
             success, message = slack.test_connection()
             if success:

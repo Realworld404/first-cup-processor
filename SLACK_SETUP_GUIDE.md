@@ -87,26 +87,35 @@ Now you have:
 - ✅ Bot User OAuth Token
 - ✅ Your User ID (or channel ID)
 
-### Add to Environment Variables
+### Add Credentials to .env File
 
-Edit your shell profile (`~/.zshrc` or `~/.bashrc`):
+Edit your `.env` file in the project directory:
 
 ```bash
-# Open your shell profile
-nano ~/.zshrc
+# Edit .env file
+nano .env
 
 # Add these lines (replace with your actual values):
-export SLACK_WEBHOOK_URL='https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXX'
-export SLACK_BOT_TOKEN='xoxb-YOUR-BOT-TOKEN-HERE'
-export SLACK_USER_ID='U01234ABCDE'  # Or channel ID like C01234ABCDE
-
-# Save and reload
-source ~/.zshrc
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXX
+SLACK_BOT_TOKEN=xoxb-YOUR-BOT-TOKEN-HERE
+SLACK_USER_ID=U01234ABCDE
 ```
 
-**OR** add to `config.json` (more secure - not committed to git):
+**Note:** You can use either a User ID (for DMs) or Channel ID (for channel posts). The example above uses a User ID.
 
-The processor will update `config.json` to include Slack settings. You'll add your tokens there.
+### Enable Slack in config.json
+
+Edit `config.json` and set Slack to enabled:
+
+```json
+{
+  "slack": {
+    "enabled": true
+  }
+}
+```
+
+That's it! All your secrets are safely in `.env` (which is not committed to git), and your configuration is clean.
 
 ---
 
