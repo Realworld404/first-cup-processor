@@ -165,8 +165,8 @@ CRITICAL INSTRUCTIONS:
 - The DESCRIPTION should focus ONLY on the First Cup panel discussion
 - The teaser/transition to the main session should be included in the timestamps section but should NOT be described in the main description text or key topics
 - The NEWSLETTER should focus ONLY on the First Cup panel discussion
-- DO NOT use markdown formatting like ** or __ in any output
-- Use plain text only
+- For TITLES, DESCRIPTION, and KEYWORDS: Use plain text only (NO markdown formatting)
+- For NEWSLETTER ARTICLE: Use full markdown formatting including hyperlinks (see specific instructions below)
 
 TRANSCRIPT:
 {transcript}
@@ -238,20 +238,31 @@ Write a ~150 word newsletter article that:
 - Features ONE compelling quote from a panelist when possible (use actual names)
 - Presents contrasting perspectives when they occurred
 - Ends with a clear, actionable key takeaway
-- Includes a CTA to watch the full video on YouTube
+- Includes a CTA to watch the full video on YouTube with a hyperlink
 - Uses a conversational, engaging tone
-- Use plain text only - NO markdown formatting like ** or __
 - Include a suggested email subject line at the very top (before the article)
 {f"- IMPORTANT: Match the style, tone, and structure shown in the newsletter examples above" if newsletter_examples else ""}
+
+MARKDOWN FORMATTING REQUIREMENTS for newsletter article:
+- Use **bold** for emphasis on key terms, names, or important points
+- Use *italics* for subtle emphasis or quotes
+- Add hyperlinks for:
+  * The YouTube video (use placeholder [Watch the full discussion]({{YOUTUBE_URL}})
+  * Company names mentioned (link to their websites if publicly known)
+  * Product names or technologies (link to official sites/documentation)
+  * Panelist names (link to LinkedIn profiles or professional sites if they are public figures)
+  * Any specific tools, frameworks, or resources mentioned
+- Keep hyperlinks natural and embedded in the text flow
+- Don't over-link - only link terms that add value for the reader
 
 CRITICAL: Keep the article to approximately 150 words. Be concise and punchy.
 
 Start this section with "NEWSLETTER ARTICLE:" header.
 
 CRITICAL FORMATTING REMINDERS:
-- NO markdown formatting (**, __, etc.) anywhere in your response
+- Use markdown formatting ONLY in the NEWSLETTER ARTICLE section
+- For TITLES, DESCRIPTION, and KEYWORDS: use plain text only (NO markdown)
 - Keywords must be on ONE line only, comma-separated
-- Use plain text throughout
 - Do not add extra numbering or text after the keywords line
 
 Please format your response with clear section headers so outputs can be easily parsed."""
