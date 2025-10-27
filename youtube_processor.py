@@ -243,17 +243,31 @@ Write a ~150 word newsletter article that:
 - Include a suggested email subject line at the very top (before the article)
 {f"- IMPORTANT: Match the style, tone, and structure shown in the newsletter examples above" if newsletter_examples else ""}
 
-MARKDOWN FORMATTING REQUIREMENTS for newsletter article:
-- Use **bold** for emphasis on key terms, names, or important points
-- Use *italics* for subtle emphasis or quotes
-- Add hyperlinks for:
-  * The YouTube video (use placeholder [Watch the full discussion]({{YOUTUBE_URL}})
-  * Company names mentioned (link to their websites if publicly known)
-  * Product names or technologies (link to official sites/documentation)
-  * Panelist names (link to LinkedIn profiles or professional sites if they are public figures)
-  * Any specific tools, frameworks, or resources mentioned
-- Keep hyperlinks natural and embedded in the text flow
-- Don't over-link - only link terms that add value for the reader
+MARKDOWN FORMATTING REQUIREMENTS for newsletter article (MANDATORY):
+You MUST use full markdown formatting in the newsletter article. This is REQUIRED, not optional.
+
+REQUIRED MARKDOWN ELEMENTS:
+1. **Bold text** - Use for:
+   - Panelist names on first mention (e.g., **Steve Johnson**)
+   - Key terms and concepts (e.g., **product mindset**, **ZIRP-era**)
+   - Important phrases (e.g., **progress, not sacrilege**)
+   - At least 3-5 bold items throughout the article
+
+2. *Italic text* - Use for:
+   - Direct quotes from panelists (e.g., *"We shouldn't keep adding to the plate"*)
+   - Emphasis on specific words (e.g., *real reactions*, *test strategy*)
+   - At least 2-3 italic items
+
+3. Hyperlinks - REQUIRED, use for:
+   - YouTube video: [Watch the full discussion]({{YOUTUBE_URL}}) or [Watch it here]({{YOUTUBE_URL}})
+   - Company names: [Company Name](https://company.com)
+   - Products/tools: [Product Name](https://product.com)
+   - Panelist names if they're public figures with LinkedIn
+
+EXAMPLE OUTPUT FORMAT:
+"This week's First Cup tackled **Figma Make** and instant prototyping. **Valerie King** says it's *progress, not sacrilege*—but only if teams align first. [Watch the full discussion]({{YOUTUBE_URL}})."
+
+DO NOT output plain text - you must include **bold**, *italics*, and [hyperlinks]().
 
 CRITICAL: Keep the article to approximately 150 words. Be concise and punchy.
 
