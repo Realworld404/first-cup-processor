@@ -32,6 +32,11 @@ ANTHROPIC_API_KEY=your-key-here
 
 ### 3. Configure Settings
 
+Copy the template and customize:
+```bash
+cp config.json.template config.json
+```
+
 Edit `config.json`:
 ```json
 {
