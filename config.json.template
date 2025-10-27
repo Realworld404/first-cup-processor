@@ -1,0 +1,21 @@
+{
+  "directories": {
+    "transcripts": "./transcripts",
+    "outputs": "./outputs"
+  },
+  "templates": {
+    "youtube_description": "./youtube_description_template.txt",
+    "newsletter_examples": "./newsletter_examples.md"
+  },
+  "api": {
+    "model": "claude-sonnet-4-20250514",
+    "watch_interval": 10
+  },
+  "slack": {
+    "enabled": false,
+    "webhook_url": "https://hooks.slack.com/services/YOUR/WEBHOOK/URL",
+    "bot_token": "xoxb-your-bot-token-here",
+    "user_id": "U01234567890",
+    "comment": "Set enabled to true and add your tokens. user_id can be a user ID (DMs) or channel ID (for channel posts). Get these from https://api.slack.com/apps - See SLACK_SETUP_GUIDE.md for instructions."
+  }
+}
