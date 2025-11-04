@@ -230,9 +230,19 @@ These should be SEO-relevant keywords for the PANEL DISCUSSION topic only.
 IMPORTANT: Put ALL keywords on a single line, comma-separated, with NO extra text or numbering after
 
 3. NEWSLETTER ARTICLE
-Write a ~150 word newsletter article that:
-- Opens with a header formatted EXACTLY as: ☕️ First Cup: [Use the selected title provided below]
-- This header should be the FIRST line - do NOT include any subject line or other text before it
+Write a ~150 word newsletter article.
+
+CRITICAL FIRST LINE FORMAT:
+The article MUST start with this EXACT format:
+☕️ First Cup: [selected title]
+
+For example, if the selected title is "Why Product Managers Fail", the first line must be:
+☕️ First Cup: Why Product Managers Fail
+
+DO NOT write just the title alone. DO NOT skip the "☕️ First Cup:" prefix. This prefix is MANDATORY.
+
+Article requirements:
+- First line: ☕️ First Cup: [selected title] (MANDATORY - do not skip this!)
 - Recaps the First Cup panel discussion segment
 - Includes context about the topic/prompt discussed
 - Highlights key discussion points with specific examples
