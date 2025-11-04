@@ -580,9 +580,18 @@ def parse_response(response_text):
                                 response_text, re.DOTALL | re.IGNORECASE)
     if newsletter_match:
         newsletter = newsletter_match.group(1).strip()
+
+        # Strip the email subject line - look for the "☕️ First Cup:" header
+        first_cup_match = re.search(r'(☕️\s*First Cup:.*)', newsletter, re.DOTALL | re.IGNORECASE)
+        if first_cup_match:
+            newsletter = first_cup_match.group(1).strip()
+            print(f"  ✓ Newsletter article extracted (removed subject line, {len(newsletter)} chars)")
+        else:
+            print(f"  ✓ Newsletter article extracted ({len(newsletter)} chars)")
+            print(f"  ⚠️  Warning: Could not find '☕️ First Cup:' header, keeping full content")
+
         # Keep markdown formatting (bold, italics, links)
         outputs['newsletter'] = newsletter
-        print(f"  ✓ Newsletter article extracted ({len(newsletter)} chars)")
     else:
         print("  ⚠️  WARNING: Newsletter article not found in response")
         print("  Response structure might have changed. Saving what we have...")
