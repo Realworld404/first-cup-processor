@@ -232,6 +232,7 @@ IMPORTANT: Put ALL keywords on a single line, comma-separated, with NO extra tex
 3. NEWSLETTER ARTICLE
 Write a ~150 word newsletter article that:
 - Opens with a header formatted EXACTLY as: ☕️ First Cup: [Use the selected title provided below]
+- This header should be the FIRST line - do NOT include any subject line or other text before it
 - Recaps the First Cup panel discussion segment
 - Includes context about the topic/prompt discussed
 - Highlights key discussion points with specific examples
@@ -240,7 +241,6 @@ Write a ~150 word newsletter article that:
 - Ends with a clear, actionable key takeaway
 - Includes a CTA to watch the full video on YouTube with a hyperlink
 - Uses a conversational, engaging tone
-- Include a suggested email subject line at the very top (before the article) - use the selected title or a variation of it
 {f"- IMPORTANT: Match the style, tone, and structure shown in the newsletter examples above" if newsletter_examples else ""}
 
 MARKDOWN FORMATTING REQUIREMENTS for newsletter article (MANDATORY):
