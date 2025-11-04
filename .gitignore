@@ -185,3 +185,6 @@ transcripts/*
 outputs/*
 !outputs/.gitkeep
 .processed_transcripts.json
+
+# AI Chat Archives
+ai-chats/

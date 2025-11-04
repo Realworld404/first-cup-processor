@@ -691,10 +691,32 @@ def save_outputs(outputs, output_dir, base_filename, selected_title, description
         f.write(outputs['keywords'])
         f.write("\n")
     
-    # Save newsletter article
+    # Save newsletter article with headline
     newsletter_file = transcript_dir / "newsletter_article.txt"
     with open(newsletter_file, 'w') as f:
-        f.write(outputs['newsletter'])
+        # Add the mandatory headline and remove any duplicate headline from Claude's output
+        newsletter_content = outputs['newsletter']
+
+        # Remove the first line(s) if they look like headlines
+        lines = newsletter_content.split('\n')
+        while lines:
+            first_line = lines[0].strip()
+            # Check if first line is a headline (doesn't start with ** for bold content, or is a ☕️ headline)
+            if (first_line and
+                not first_line.startswith('**') and
+                (not first_line.startswith('*') or '☕️' in first_line or 'First Cup' in first_line) and
+                not first_line.startswith('##')):
+                # Remove this headline line
+                lines.pop(0)
+            else:
+                break
+
+        newsletter_content = '\n'.join(lines).lstrip()
+
+        # Add our formatted headline
+        newsletter_content = f"## ☕️ First Cup: {selected_title}\n\n{newsletter_content}"
+
+        f.write(newsletter_content)
     
     # Save components separately for reference/editing
     components_file = transcript_dir / "description_components.txt"
