@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.productcoffee.firstcup.poller</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/jasonbrett/anaconda3/bin/python3</string>
+        <string>/Users/jasonbrett/developer/productcoffee/first-cup-processor/publish_poller.py</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/jasonbrett/developer/productcoffee/first-cup-processor</string>
+
+    <!-- NOT RunAtLoad - this is spawned on-demand by youtube_processor.py -->
+    <key>RunAtLoad</key>
+    <false/>
+
+    <!-- KeepAlive false - process manages its own lifecycle (24h timeout or success) -->
+    <key>KeepAlive</key>
+    <false/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/jasonbrett/developer/productcoffee/first-cup-processor/logs/poller_stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/jasonbrett/developer/productcoffee/first-cup-processor/logs/poller_stderr.log</string>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>

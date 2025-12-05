@@ -4,7 +4,8 @@ YouTube Transcript Processor
 Watches a directory for new transcript files and automatically generates:
 1. SEO-optimized title options
 2. YouTube description with timestamps
-3. Newsletter article
+3. Newsletter teaser (~50-75 words for email)
+4. LinkedIn/blog post (~200-250 words for social/blog)
 
 Supports Slack integration for interactive title selection and notifications.
 
@@ -25,6 +26,7 @@ import sys
 import time
 import json
 import re
+import subprocess
 from pathlib import Path
 from datetime import datetime
 import anthropic
@@ -36,6 +38,14 @@ try:
 except ImportError:
     SLACK_AVAILABLE = False
     print("⚠️  Slack integration not available (slack_helper.py not found)")
+
+# Import blog publisher (optional - gracefully handles if not available)
+try:
+    from blog_publisher import publish_first_cup, BlogPublisher
+    BLOG_PUBLISHER_AVAILABLE = True
+except ImportError:
+    BLOG_PUBLISHER_AVAILABLE = False
+    print("⚠️  Blog publisher not available (blog_publisher.py not found)")
 
 # Configuration - will be loaded from config.json
 ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
@@ -229,17 +239,30 @@ Example: artificial intelligence, productivity, business automation, AI agents, 
 These should be SEO-relevant keywords for the PANEL DISCUSSION topic only.
 IMPORTANT: Put ALL keywords on a single line, comma-separated, with NO extra text or numbering after
 
-3. NEWSLETTER ARTICLE
-Write a ~150 word newsletter article.
+3. NEWSLETTER TEASER (for email newsletter)
+Write a SHORT ~50-75 word teaser for the email newsletter.
+
+Purpose: Entice readers to click through and watch the full video. This is NOT a summary—it's a hook.
+
+Requirements:
+- 50-75 words MAXIMUM (be ruthless about brevity)
+- Open with a provocative question or bold statement about the topic
+- Give ONE strong takeaway or intriguing point (not multiple)
+- End with a clear CTA to watch the video
+- Use markdown: **bold** for key terms, *italics* for quotes, [hyperlinks]({{YOUTUBE_URL}}) for CTAs
+- DO NOT summarize the whole discussion—tease it
+
+EXAMPLE FORMAT:
+"Should PMs even learn to code? This week's panel got heated. **Saeed Khan** dropped a hot take: *"We're piling too much on already overloaded PMs."* But not everyone agreed. [Watch the debate →]({{YOUTUBE_URL}})"
+
+Start this section with "NEWSLETTER TEASER:" header.
+
+4. LINKEDIN/BLOG POST (for social media and blog)
+Write a ~200-250 word article for LinkedIn or blog repurposing.
 
 CRITICAL FIRST LINE FORMAT:
 The article MUST start with this EXACT format:
 ☕️ First Cup: [selected title]
-
-For example, if the selected title is "Why Product Managers Fail", the first line must be:
-☕️ First Cup: Why Product Managers Fail
-
-DO NOT write just the title alone. DO NOT skip the "☕️ First Cup:" prefix. This prefix is MANDATORY.
 
 Article requirements:
 - First line: ☕️ First Cup: [selected title] (MANDATORY - do not skip this!)
@@ -253,8 +276,8 @@ Article requirements:
 - Uses a conversational, engaging tone
 {f"- IMPORTANT: Match the style, tone, and structure shown in the newsletter examples above" if newsletter_examples else ""}
 
-MARKDOWN FORMATTING REQUIREMENTS for newsletter article (MANDATORY):
-You MUST use full markdown formatting in the newsletter article. This is REQUIRED, not optional.
+MARKDOWN FORMATTING REQUIREMENTS (MANDATORY):
+You MUST use full markdown formatting. This is REQUIRED, not optional.
 
 REQUIRED MARKDOWN ELEMENTS:
 1. **Bold text** - Use for:
@@ -272,19 +295,14 @@ REQUIRED MARKDOWN ELEMENTS:
    - YouTube video: [Watch the full discussion]({{YOUTUBE_URL}}) or [Watch it here]({{YOUTUBE_URL}})
    - Company names: [Company Name](https://company.com)
    - Products/tools: [Product Name](https://product.com)
-   - Panelist names if they're public figures with LinkedIn
 
 EXAMPLE OUTPUT FORMAT:
 "This week's First Cup tackled **Figma Make** and instant prototyping. **Valerie King** says it's *progress, not sacrilege*—but only if teams align first. [Watch the full discussion]({{YOUTUBE_URL}})."
 
-DO NOT output plain text - you must include **bold**, *italics*, and [hyperlinks]().
-
-CRITICAL: Keep the article to approximately 150 words. Be concise and punchy.
-
-Start this section with "NEWSLETTER ARTICLE:" header.
+Start this section with "LINKEDIN/BLOG POST:" header.
 
 CRITICAL FORMATTING REMINDERS:
-- Use markdown formatting ONLY in the NEWSLETTER ARTICLE section
+- Use markdown formatting ONLY in the NEWSLETTER TEASER and LINKEDIN/BLOG POST sections
 - For TITLES, DESCRIPTION, and KEYWORDS: use plain text only (NO markdown)
 - Keywords must be on ONE line only, comma-separated
 - Do not add extra numbering or text after the keywords line
@@ -525,7 +543,8 @@ def parse_response(response_text):
         'timestamps': '',
         'panelists': '',
         'keywords': '',
-        'newsletter': ''
+        'newsletter_teaser': '',
+        'blog_post': ''
     }
     
     # Extract hook
@@ -585,36 +604,46 @@ def parse_response(response_text):
         keywords_raw = re.sub(r'\s*\d+\.\s*$', '', keywords_raw)
         outputs['keywords'] = keywords_raw
     
-    # Extract newsletter article
-    newsletter_match = re.search(r'NEWSLETTER\s+ARTICLE:\s*(.*?)$',
-                                response_text, re.DOTALL | re.IGNORECASE)
-    if newsletter_match:
-        newsletter = newsletter_match.group(1).strip()
+    # Extract newsletter teaser (short version for email)
+    teaser_match = re.search(r'NEWSLETTER\s+TEASER:\s*(.*?)(?=LINKEDIN|BLOG\s*POST|$)',
+                            response_text, re.DOTALL | re.IGNORECASE)
+    if teaser_match:
+        teaser = teaser_match.group(1).strip()
+        # Keep markdown formatting (bold, italics, links)
+        outputs['newsletter_teaser'] = teaser
+        print(f"  ✓ Newsletter teaser extracted ({len(teaser)} chars)")
+    else:
+        print("  ⚠️  WARNING: Newsletter teaser not found in response")
 
-        # Strip the email subject line - look for the "☕️ First Cup:" header
-        first_cup_match = re.search(r'(☕️\s*First Cup:.*)', newsletter, re.DOTALL | re.IGNORECASE)
+    # Extract LinkedIn/blog post (longer version)
+    blog_match = re.search(r'(?:LINKEDIN/?BLOG\s*POST|BLOG\s*POST):\s*(.*?)$',
+                          response_text, re.DOTALL | re.IGNORECASE)
+    if blog_match:
+        blog_post = blog_match.group(1).strip()
+
+        # Strip any email subject line - look for the "☕️ First Cup:" header
+        first_cup_match = re.search(r'(☕️\s*First Cup:.*)', blog_post, re.DOTALL | re.IGNORECASE)
         if first_cup_match:
-            newsletter = first_cup_match.group(1).strip()
-            print(f"  ✓ Newsletter article extracted (removed subject line, {len(newsletter)} chars)")
+            blog_post = first_cup_match.group(1).strip()
+            print(f"  ✓ Blog post extracted (removed subject line, {len(blog_post)} chars)")
         else:
-            print(f"  ✓ Newsletter article extracted ({len(newsletter)} chars)")
-            print(f"  ⚠️  Warning: Could not find '☕️ First Cup:' header, keeping full content")
+            print(f"  ✓ Blog post extracted ({len(blog_post)} chars)")
 
         # Keep markdown formatting (bold, italics, links)
-        outputs['newsletter'] = newsletter
+        outputs['blog_post'] = blog_post
     else:
-        print("  ⚠️  WARNING: Newsletter article not found in response")
+        print("  ⚠️  WARNING: LinkedIn/blog post not found in response")
         print("  Response structure might have changed. Saving what we have...")
-        # Try to extract anything after a newsletter-related header
-        fallback_match = re.search(r'(?:newsletter|article).*?:\s*(.*?)$',
+        # Try fallback - look for old NEWSLETTER ARTICLE format for backwards compatibility
+        fallback_match = re.search(r'NEWSLETTER\s+ARTICLE:\s*(.*?)$',
                                    response_text, re.DOTALL | re.IGNORECASE)
         if fallback_match:
-            outputs['newsletter'] = fallback_match.group(1).strip()
-            print(f"  ℹ️  Used fallback extraction ({len(outputs['newsletter'])} chars)")
+            outputs['blog_post'] = fallback_match.group(1).strip()
+            print(f"  ℹ️  Used fallback extraction ({len(outputs['blog_post'])} chars)")
 
     # Final validation
-    if not outputs['newsletter']:
-        print("  ❌ ERROR: Newsletter article is empty!")
+    if not outputs['newsletter_teaser'] and not outputs['blog_post']:
+        print("  ❌ ERROR: Both newsletter teaser and blog post are empty!")
         print("  This may indicate a parsing issue. Check full_response.txt for the raw output.")
 
     return outputs
@@ -691,14 +720,23 @@ def save_outputs(outputs, output_dir, base_filename, selected_title, description
         f.write(outputs['keywords'])
         f.write("\n")
     
-    # Save newsletter article with headline
-    newsletter_file = transcript_dir / "newsletter_article.txt"
-    with open(newsletter_file, 'w') as f:
+    # Save newsletter teaser (short version for email)
+    teaser_file = transcript_dir / "newsletter_teaser.txt"
+    with open(teaser_file, 'w') as f:
+        f.write("=== NEWSLETTER TEASER (for email) ===\n")
+        f.write("Use this short teaser in the Weekly Brew newsletter.\n")
+        f.write("~50-75 words to entice readers to watch the video.\n\n")
+        f.write(outputs['newsletter_teaser'])
+        f.write("\n")
+
+    # Save LinkedIn/blog post (longer version)
+    blog_file = transcript_dir / "linkedin_blog_post.txt"
+    with open(blog_file, 'w') as f:
         # Add the mandatory headline and remove any duplicate headline from Claude's output
-        newsletter_content = outputs['newsletter']
+        blog_content = outputs['blog_post']
 
         # Remove the first line(s) if they look like headlines
-        lines = newsletter_content.split('\n')
+        lines = blog_content.split('\n') if blog_content else []
         while lines:
             first_line = lines[0].strip()
             # Check if first line is a headline (doesn't start with ** for bold content, or is a ☕️ headline)
@@ -711,12 +749,12 @@ def save_outputs(outputs, output_dir, base_filename, selected_title, description
             else:
                 break
 
-        newsletter_content = '\n'.join(lines).lstrip()
+        blog_content = '\n'.join(lines).lstrip()
 
         # Add our formatted headline
-        newsletter_content = f"## ☕️ First Cup: {selected_title}\n\n{newsletter_content}"
+        blog_content = f"## ☕️ First Cup: {selected_title}\n\n{blog_content}"
 
-        f.write(newsletter_content)
+        f.write(blog_content)
     
     # Save components separately for reference/editing
     components_file = transcript_dir / "description_components.txt"
@@ -733,10 +771,58 @@ def save_outputs(outputs, output_dir, base_filename, selected_title, description
     with open(full_file, 'w') as f:
         f.write(f"=== SELECTED TITLE ===\n\n{selected_title}")
         f.write(f"\n\n=== YOUTUBE DESCRIPTION (with template) ===\n\n{description_text}")
-        f.write(f"\n\n=== NEWSLETTER ARTICLE ===\n\n{outputs['newsletter']}")
+        f.write(f"\n\n=== NEWSLETTER TEASER (for email) ===\n\n{outputs['newsletter_teaser']}")
+        f.write(f"\n\n=== LINKEDIN/BLOG POST ===\n\n{outputs['blog_post']}")
     
     print(f"  ✓ Outputs saved to: {transcript_dir}")
     return transcript_dir
+
+def spawn_publish_poller(slack, output_path, selected_title):
+    """
+    Spawn the publish poller daemon to monitor for publish triggers.
+
+    The poller runs as a separate process that:
+    - Polls Slack every minute for emoji reactions (📤) or "publish" replies
+    - Auto-terminates after 24 hours or when publish completes
+    - Uses a state file to communicate between processes
+    """
+    script_dir = Path(__file__).parent
+    state_file = script_dir / ".publish_poller_state.json"
+    poller_script = script_dir / "publish_poller.py"
+
+    if not poller_script.exists():
+        print("  ⚠️ publish_poller.py not found - skipping poller spawn")
+        return False
+
+    # Save state for the poller
+    if slack.save_poller_state(str(state_file)):
+        print(f"  📋 Saved poller state to: {state_file.name}")
+    else:
+        print("  ⚠️ Could not save poller state")
+        return False
+
+    # Spawn the poller process in background
+    try:
+        # Use the same Python interpreter that's running this script
+        python_path = sys.executable
+
+        # Start the poller as a detached background process
+        process = subprocess.Popen(
+            [python_path, str(poller_script), "--state", str(state_file)],
+            cwd=str(script_dir),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True  # Detach from parent process
+        )
+
+        print(f"  🚀 Publish poller spawned (PID: {process.pid})")
+        print(f"     React with 📤 or reply 'publish' within 24 hours")
+        return True
+
+    except Exception as e:
+        print(f"  ⚠️ Error spawning poller: {e}")
+        return False
+
 
 def process_transcript_file(filepath, output_dir, api_key, template_path, examples_path, slack=None):
     """Process a single transcript file"""
@@ -795,7 +881,14 @@ def process_transcript_file(filepath, output_dir, api_key, template_path, exampl
 
         # Notify completion via Slack
         if slack and slack.is_enabled():
+            # Store output info for potential later publish command
+            slack.last_output_path = str(output_path)
+            slack.last_selected_title = selected_title
             slack.notify_completion(str(output_path), filepath.name)
+
+            # Spawn the publish poller daemon to wait for publish trigger
+            if BLOG_PUBLISHER_AVAILABLE:
+                spawn_publish_poller(slack, str(output_path), selected_title)
 
         return output_path
 
@@ -825,6 +918,15 @@ def watch_directory(watch_dir, output_dir, api_key, template_path, examples_path
             slack = SlackHelper()
             if slack.is_enabled():
                 print(f"✅ Slack integration enabled")
+
+                # Set up publish callback if blog publisher is available
+                if BLOG_PUBLISHER_AVAILABLE:
+                    publisher = BlogPublisher()
+                    if publisher.is_configured():
+                        slack.set_publish_callback(publish_first_cup)
+                        print(f"✅ Blog publishing enabled (reply 'publish' to any thread)")
+                    else:
+                        print(f"ℹ️  Blog publishing not configured (missing WP credentials)")
             else:
                 print(f"⚠️  Slack enabled in config but missing credentials")
                 slack = None
@@ -879,6 +981,10 @@ def watch_directory(watch_dir, output_dir, api_key, template_path, examples_path
                         processed.append(filepath.name)
                     except Exception as e:
                         print(f"  ❌ Error processing {filepath.name}: {e}")
+
+            # Check for publish commands while idle
+            if slack and slack.is_enabled():
+                slack.check_for_publish_command()
 
             time.sleep(WATCH_INTERVAL)
 

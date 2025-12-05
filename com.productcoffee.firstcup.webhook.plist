@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.productcoffee.firstcup.webhook</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/jasonbrett/anaconda3/bin/python3</string>
+        <string>/Users/jasonbrett/developer/productcoffee/first-cup-processor/publish_webhook.py</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/jasonbrett/developer/productcoffee/first-cup-processor</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/jasonbrett/developer/productcoffee/first-cup-processor/logs/webhook_stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/jasonbrett/developer/productcoffee/first-cup-processor/logs/webhook_stderr.log</string>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>
