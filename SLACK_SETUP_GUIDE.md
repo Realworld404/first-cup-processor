@@ -96,7 +96,7 @@ Edit your `.env` file in the project directory:
 nano .env
 
 # Add these lines (replace with your actual values):
-SLACK_WEBHOOK_URL=https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXX
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
 SLACK_BOT_TOKEN=xoxb-YOUR-BOT-TOKEN-HERE
 SLACK_USER_ID=U01234ABCDE
 ```
