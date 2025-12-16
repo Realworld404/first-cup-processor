@@ -34,6 +34,12 @@ First Cup Processor - Automated YouTube transcript processing system for Product
   - Spawned automatically after transcript processing completes
   - Polls Slack every 60 seconds for emoji reactions or text commands
   - Auto-terminates after 24 hours or when publish completes
+- ✅ **Keyword Generation Fix & Regression Tests** (2025-12-16) ⭐ **LATEST**
+  - Fixed issue where Claude occasionally failed to generate keywords
+  - Strengthened prompt with REQUIRED markers and checklist
+  - Added validation warnings when keywords are empty or incomplete
+  - Added comprehensive missing section detection in parse_response()
+  - Created test_parse_response.py regression test suite (6 tests)
 
 ## Architecture Overview
 
@@ -271,6 +277,9 @@ python3 youtube_processor.py
 # Test Slack integration
 python3 youtube_processor.py --test-slack
 
+# Run regression tests
+python3 test_parse_response.py
+
 # Trigger via Launch Agent (drop file)
 cp sample_transcript.txt transcripts/
 
@@ -303,6 +312,12 @@ Edit `youtube_processor.py`:
 - Look for "NEWSLETTER ARTICLE" section to adjust newsletter requirements
 
 ## Common Issues
+
+**Empty or missing keywords:**
+- Claude occasionally fails to generate keywords - look for "⚠️ WARNING: KEYWORDS section is empty!" in output
+- The prompt includes REQUIRED markers and a checklist to prevent this
+- Run `python3 test_parse_response.py` to verify parse_response() is working correctly
+- Check `description_components.txt` to see if KEYWORDS section has content
 
 **Blank newsletter articles:**
 - Check `full_response.txt` to see raw Claude output
@@ -345,11 +360,12 @@ first-cup-processor/
 ├── blog_publisher.py              # WordPress blog publishing (optional)
 ├── publish_poller.py              # Background daemon for publish triggers
 ├── publish_webhook.py             # HTTP webhook server (alternative trigger method)
+├── test_parse_response.py         # Regression tests for response parsing
 ├── config.json                    # Settings (safe to commit)
 ├── .env                           # Secrets (NEVER commit)
 ├── .env.template                  # Template for credentials
 ├── config.json.template           # Template for settings
-├── .publish_poller_state.json     # State file for poller (auto-generated)
+├── .publish_poller_state.json     # State file for poller (auto-generated, gitignored)
 ├── requirements.txt               # Python dependencies
 ├── install_launch_agent.sh        # Auto-install Launch Agent
 ├── run_processor.sh               # Launch Agent wrapper script
