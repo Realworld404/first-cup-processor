@@ -233,10 +233,11 @@ Format: Start with "PANELISTS:" then list each panelist with their name and titl
 • [Name] - [Title/Company or brief description]
 Extract this information from the transcript. If titles/companies aren't mentioned, just use their names.
 
-E) KEYWORDS (5-10 relevant keywords, comma-separated, NO hashtags)
+E) KEYWORDS (REQUIRED - 5-10 relevant keywords, comma-separated, NO hashtags)
 Format: Start with "KEYWORDS:" then comma-separated keywords on ONE LINE
-Example: artificial intelligence, productivity, business automation, AI agents, workflow optimization
+Example: KEYWORDS: artificial intelligence, productivity, business automation, AI agents, workflow optimization
 These should be SEO-relevant keywords for the PANEL DISCUSSION topic only.
+CRITICAL: You MUST provide actual keywords. Do NOT leave this section empty.
 IMPORTANT: Put ALL keywords on a single line, comma-separated, with NO extra text or numbering after
 
 3. NEWSLETTER TEASER (for email newsletter)
@@ -304,8 +305,18 @@ Start this section with "LINKEDIN/BLOG POST:" header.
 CRITICAL FORMATTING REMINDERS:
 - Use markdown formatting ONLY in the NEWSLETTER TEASER and LINKEDIN/BLOG POST sections
 - For TITLES, DESCRIPTION, and KEYWORDS: use plain text only (NO markdown)
+- KEYWORDS section is MANDATORY - you MUST provide 5-10 actual SEO keywords (not just hashtags)
 - Keywords must be on ONE line only, comma-separated
 - Do not add extra numbering or text after the keywords line
+
+CHECKLIST BEFORE RESPONDING:
+[ ] HOOK - 2-3 sentences created? (REQUIRED)
+[ ] KEY_TOPICS - 3-5 bullet points created? (REQUIRED)
+[ ] TIMESTAMPS - Chapter markers with exact times? (REQUIRED)
+[ ] PANELISTS - List of panelists with titles? (REQUIRED)
+[ ] KEYWORDS - 5-10 SEO keywords on one line? (REQUIRED)
+[ ] NEWSLETTER TEASER - ~50-75 words with CTA? (REQUIRED)
+[ ] LINKEDIN/BLOG POST - ~200-250 words starting with ☕️ First Cup? (REQUIRED)
 
 Please format your response with clear section headers so outputs can be easily parsed."""
 
@@ -588,7 +599,7 @@ def parse_response(response_text):
         outputs['panelists'] = panelists
     
     # Extract keywords
-    keywords_match = re.search(r'KEYWORDS:(.*?)(?=NEWSLETTER|$)', 
+    keywords_match = re.search(r'KEYWORDS:(.*?)(?=NEWSLETTER|$)',
                               response_text, re.DOTALL | re.IGNORECASE)
     if keywords_match:
         keywords_raw = keywords_match.group(1).strip()
@@ -602,7 +613,20 @@ def parse_response(response_text):
         keywords_raw = keywords_lines[0].strip()
         # Remove any trailing numbers or periods (like "3.")
         keywords_raw = re.sub(r'\s*\d+\.\s*$', '', keywords_raw)
+        # Remove any section markers like "===" that might have leaked in
+        keywords_raw = re.sub(r'^===.*$', '', keywords_raw).strip()
         outputs['keywords'] = keywords_raw
+
+        # Validation: warn if keywords are empty or suspiciously short
+        if not keywords_raw:
+            print("  ⚠️  WARNING: KEYWORDS section is empty!")
+            print("  Claude did not generate keywords. Check full_response.txt for details.")
+        elif len(keywords_raw) < 20 or ',' not in keywords_raw:
+            print(f"  ⚠️  WARNING: KEYWORDS may be incomplete: '{keywords_raw[:50]}...'")
+        else:
+            print(f"  ✓ Keywords extracted ({len(keywords_raw.split(','))} keywords)")
+    else:
+        print("  ⚠️  WARNING: KEYWORDS section not found in response!")
     
     # Extract newsletter teaser (short version for email)
     teaser_match = re.search(r'NEWSLETTER\s+TEASER:\s*(.*?)(?=LINKEDIN|BLOG\s*POST|$)',
@@ -642,6 +666,26 @@ def parse_response(response_text):
             print(f"  ℹ️  Used fallback extraction ({len(outputs['blog_post'])} chars)")
 
     # Final validation
+    missing_sections = []
+    if not outputs['hook']:
+        missing_sections.append('HOOK')
+    if not outputs['key_topics']:
+        missing_sections.append('KEY_TOPICS')
+    if not outputs['timestamps']:
+        missing_sections.append('TIMESTAMPS')
+    if not outputs['panelists']:
+        missing_sections.append('PANELISTS')
+    if not outputs['keywords']:
+        missing_sections.append('KEYWORDS')
+    if not outputs['newsletter_teaser']:
+        missing_sections.append('NEWSLETTER TEASER')
+    if not outputs['blog_post']:
+        missing_sections.append('BLOG POST')
+
+    if missing_sections:
+        print(f"  ⚠️  WARNING: Missing sections: {', '.join(missing_sections)}")
+        print("  Check full_response.txt for the raw output.")
+
     if not outputs['newsletter_teaser'] and not outputs['blog_post']:
         print("  ❌ ERROR: Both newsletter teaser and blog post are empty!")
         print("  This may indicate a parsing issue. Check full_response.txt for the raw output.")

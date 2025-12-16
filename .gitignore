@@ -185,6 +185,7 @@ transcripts/*
 outputs/*
 !outputs/.gitkeep
 .processed_transcripts.json
+.publish_poller_state.json
 
 # AI Chat Archives
 ai-chats/
