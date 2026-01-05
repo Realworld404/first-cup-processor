@@ -124,8 +124,13 @@ def load_processed_files(output_dir):
     """Load list of already processed files"""
     processed_file = Path(output_dir) / PROCESSED_FILE
     if processed_file.exists():
-        with open(processed_file, 'r') as f:
-            return json.load(f)
+        try:
+            with open(processed_file, 'r') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, ValueError) as e:
+            print(f"⚠️  Warning: Corrupted processed files list: {e}")
+            print(f"   Creating fresh list...")
+            return []
     return []
 
 def save_processed_file(output_dir, filename):
@@ -137,8 +142,175 @@ def save_processed_file(output_dir, filename):
         with open(processed_file, 'w') as f:
             json.dump(processed, f, indent=2)
 
+def create_youtube_description_prompt(transcript, selected_title):
+    """Step 2: Create YouTube description and keywords from selected title and transcript"""
+
+    current_date = datetime.now().strftime('%Y-%m-%d')
+    current_year = datetime.now().year
+
+    return f"""Create a YouTube description and keywords for this "First Cup" panel discussion episode.
+
+CURRENT DATE CONTEXT:
+Today's date is {current_date}. The current year is {current_year}. DO NOT reference years like 2024 unless they are explicitly mentioned in the transcript. When discussing current trends or future predictions, use the correct year ({current_year}) or say "this year" instead of assuming 2024.
+
+IMPORTANT CONTEXT ABOUT THE SHOW FORMAT:
+This is "First Cup" - a panel discussion show. The main content (approximately the first 25 minutes) is a panel discussion on a specific topic. In the last ~5 minutes, there is a transition/teaser for the main session that follows.
+
+SELECTED TITLE:
+{selected_title}
+
+TRANSCRIPT:
+{transcript}
+
+YOUR TASK:
+Generate these components for the YouTube description (they will be inserted into a template):
+
+A) HOOK (2-3 engaging sentences that create curiosity about the PANEL DISCUSSION)
+Format: Start with "HOOK:" then the text
+IMPORTANT: Use plain text only - NO markdown formatting like ** or __
+
+B) KEY TOPICS (3-5 bullet points about what's covered in the PANEL DISCUSSION ONLY)
+Format: Start with "KEY_TOPICS:" then list each topic on a new line with "• " prefix
+Do NOT describe the teaser/main session content
+IMPORTANT: Use plain text only - NO markdown formatting
+
+C) TIMESTAMPS (Chapter markers with exact timestamps)
+Format: Start with "TIMESTAMPS:" then list timestamps like:
+00:00 - Introduction
+05:23 - [Panel discussion topic name]
+12:45 - [Panel discussion topic name]
+25:00 - [Create an enticing teaser about the main session - extract the most interesting/compelling topic or guest from that section]
+[Include ALL timestamps from the transcript]
+
+IMPORTANT for the LAST timestamp (main session teaser):
+- DO NOT just say "Transition to Main Session" or "Main Session Begins"
+- Extract something SPECIFIC and INTERESTING from the main session portion
+- Make it enticing so viewers want to watch through to the end
+- Examples: "25:00 - Why 87% of AI Projects Fail (Main Session Preview)"
+- Examples: "26:30 - Special Guest: Sarah Chen on Enterprise AI Strategy"
+- Examples: "25:15 - The Controversial Take That Changes Everything"
+
+D) PANELISTS (List of panelists who participated in this episode)
+Format: Start with "PANELISTS:" then list each panelist with their name and title/company:
+• [Name] - [Title/Company or brief description]
+• [Name] - [Title/Company or brief description]
+Extract this information from the transcript. If titles/companies aren't mentioned, just use their names.
+
+E) KEYWORDS (REQUIRED - 5-10 relevant keywords, comma-separated, NO hashtags)
+Format: Start with "KEYWORDS:" then comma-separated keywords on ONE LINE
+Example: KEYWORDS: artificial intelligence, productivity, business automation, AI agents, workflow optimization
+These should be SEO-relevant keywords for the PANEL DISCUSSION topic only.
+CRITICAL: You MUST provide actual keywords. Do NOT leave this section empty.
+IMPORTANT: Put ALL keywords on a single line, comma-separated, with NO extra text or numbering after
+
+CHECKLIST BEFORE RESPONDING:
+[ ] HOOK - 2-3 sentences created? (REQUIRED)
+[ ] KEY_TOPICS - 3-5 bullet points created? (REQUIRED)
+[ ] TIMESTAMPS - Chapter markers with exact times? (REQUIRED)
+[ ] PANELISTS - List of panelists with titles? (REQUIRED)
+[ ] KEYWORDS - 5-10 SEO keywords on one line? (REQUIRED)
+
+Please format your response with clear section headers so outputs can be easily parsed."""
+
+
+def create_newsletter_teaser_prompt(transcript, selected_title, youtube_description):
+    """Step 3: Create newsletter teaser from title, description, and transcript"""
+
+    return f"""Create a SHORT newsletter teaser to entice readers to watch this "First Cup" panel discussion video.
+
+SELECTED TITLE:
+{selected_title}
+
+YOUTUBE DESCRIPTION HOOK:
+{youtube_description}
+
+TRANSCRIPT:
+{transcript}
+
+YOUR TASK:
+Write a SHORT ~50-75 word teaser for the email newsletter.
+
+Purpose: Entice readers to click through and watch the full video. This is NOT a summary—it's a hook.
+
+Requirements:
+- 50-75 words MAXIMUM (be ruthless about brevity)
+- Open with a provocative question or bold statement about the topic
+- Give ONE strong takeaway or intriguing point (not multiple)
+- End with a clear CTA to watch the video
+- Use markdown: **bold** for key terms, *italics* for quotes, [hyperlinks]({{{{YOUTUBE_URL}}}}) for CTAs
+- DO NOT summarize the whole discussion—tease it
+
+EXAMPLE FORMAT:
+"Should PMs even learn to code? This week's panel got heated. **Saeed Khan** dropped a hot take: *"We're piling too much on already overloaded PMs."* But not everyone agreed. [Watch the debate →]({{{{YOUTUBE_URL}}}})"
+
+Start your response with "NEWSLETTER TEASER:" header."""
+
+
+def create_blog_post_prompt(transcript, selected_title):
+    """Step 4: Create blog post from title and transcript that encourages watching"""
+
+    return f"""Create a blog post for this "First Cup" panel discussion that encourages readers to watch the full YouTube video.
+
+SELECTED TITLE:
+{selected_title}
+
+TRANSCRIPT:
+{transcript}
+
+YOUR TASK:
+Write a ~200-250 word article for LinkedIn or blog repurposing.
+
+CRITICAL FIRST LINE FORMAT:
+The article MUST start with this EXACT format:
+☕️ First Cup: {selected_title}
+
+Article requirements:
+- First line: ☕️ First Cup: {selected_title} (MANDATORY - do not skip this!)
+- Recaps the First Cup panel discussion segment
+- Includes context about the topic/prompt discussed
+- Highlights key discussion points with specific examples
+- Features ONE compelling quote from a panelist when possible (use actual names)
+- Presents contrasting perspectives when they occurred
+- Ends with a clear, actionable key takeaway
+- Includes a CTA to watch the full video on YouTube with a hyperlink
+- Uses a conversational, engaging tone
+
+MARKDOWN FORMATTING REQUIREMENTS (MANDATORY):
+You MUST use full markdown formatting. This is REQUIRED, not optional.
+
+REQUIRED MARKDOWN ELEMENTS:
+1. **Bold text** - Use for:
+   - Panelist names on first mention (e.g., **Steve Johnson**)
+   - Key terms and concepts (e.g., **product mindset**, **ZIRP-era**)
+   - Important phrases (e.g., **progress, not sacrilege**)
+   - At least 3-5 bold items throughout the article
+
+2. *Italic text* - Use for:
+   - Direct quotes from panelists (e.g., *"We shouldn't keep adding to the plate"*)
+   - Emphasis on specific words (e.g., *real reactions*, *test strategy*)
+   - At least 2-3 italic items
+
+3. Hyperlinks - REQUIRED, use for:
+   - YouTube video: [Watch the full discussion]({{{{YOUTUBE_URL}}}}) or [Watch it here]({{{{YOUTUBE_URL}}}})
+   - Company names: [Company Name](https://company.com)
+   - Products/tools: [Product Name](https://product.com)
+
+EXAMPLE OUTPUT FORMAT:
+"This week's First Cup tackled **Figma Make** and instant prototyping. **Valerie King** says it's *progress, not sacrilege*—but only if teams align first. [Watch the full discussion]({{{{YOUTUBE_URL}}}})."
+
+Start your response with "LINKEDIN/BLOG POST:" header.
+
+CHECKLIST BEFORE RESPONDING:
+[ ] First line is "☕️ First Cup: {selected_title}"? (REQUIRED)
+[ ] 200-250 words? (REQUIRED)
+[ ] At least 3-5 **bold** items? (REQUIRED)
+[ ] At least 2-3 *italic* items? (REQUIRED)
+[ ] YouTube URL hyperlink included? (REQUIRED)"""
+
+
 def create_prompt(transcript, newsletter_examples=None):
-    """Create the mega-prompt for Claude"""
+    """DEPRECATED: Old mega-prompt - now replaced by multi-step pipeline.
+    Kept for backwards compatibility during transition."""
 
     # Get current date for context
     current_date = datetime.now().strftime('%Y-%m-%d')
@@ -518,12 +690,114 @@ def interactive_title_selection_slack(titles, transcript, api_key, newsletter_ex
             print("⚠️  No response received from Slack")
             return None
 
-def process_with_claude(transcript, api_key, selected_title, newsletter_examples=None):
-    """Send transcript to Claude and get processed outputs with the selected title"""
+def call_claude_api(client, prompt, max_tokens=8000, step_name="Processing"):
+    """Helper function to call Claude API with consistent error handling"""
+    print(f"\n  📝 {step_name}...")
+    message = client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=max_tokens,
+        messages=[
+            {"role": "user", "content": prompt}
+        ]
+    )
+
+    response_text = message.content[0].text
+    print(f"  ✓ Response received ({len(response_text)} chars)")
+
+    return response_text
+
+
+def process_with_claude_pipeline(transcript, api_key, selected_title, newsletter_examples=None):
+    """Multi-step pipeline: each prompt builds on previous outputs
+
+    Step 1: Title selection (already done before calling this function)
+    Step 2: YouTube description + keywords from title + transcript
+    Step 3: Newsletter teaser from title + description hook + transcript
+    Step 4: Blog post from title + transcript (encourages watching)
+    """
     client = anthropic.Anthropic(api_key=api_key)
-    
+
+    # Step 2: Generate YouTube description and keywords
+    print("\n🔄 Step 2/4: Generating YouTube description and keywords...")
+    youtube_prompt = create_youtube_description_prompt(transcript, selected_title)
+    youtube_response = call_claude_api(
+        client,
+        youtube_prompt,
+        max_tokens=4000,
+        step_name="YouTube description & keywords"
+    )
+
+    # Parse YouTube description components
+    youtube_outputs = parse_youtube_description_response(youtube_response)
+
+    # Step 3: Generate newsletter teaser using title + description hook
+    print("\n🔄 Step 3/4: Generating newsletter teaser...")
+    newsletter_prompt = create_newsletter_teaser_prompt(
+        transcript,
+        selected_title,
+        youtube_outputs.get('hook', '')
+    )
+    newsletter_response = call_claude_api(
+        client,
+        newsletter_prompt,
+        max_tokens=1000,
+        step_name="Newsletter teaser"
+    )
+
+    # Parse newsletter teaser
+    newsletter_teaser = parse_newsletter_teaser_response(newsletter_response)
+
+    # Step 4: Generate blog post
+    print("\n🔄 Step 4/4: Generating blog post...")
+    blog_prompt = create_blog_post_prompt(transcript, selected_title)
+    blog_response = call_claude_api(
+        client,
+        blog_prompt,
+        max_tokens=2000,
+        step_name="Blog post"
+    )
+
+    # Parse blog post
+    blog_post = parse_blog_post_response(blog_response)
+
+    # Combine all outputs
+    outputs = {
+        'hook': youtube_outputs.get('hook', ''),
+        'key_topics': youtube_outputs.get('key_topics', ''),
+        'timestamps': youtube_outputs.get('timestamps', ''),
+        'panelists': youtube_outputs.get('panelists', ''),
+        'keywords': youtube_outputs.get('keywords', ''),
+        'newsletter_teaser': newsletter_teaser,
+        'blog_post': blog_post
+    }
+
+    # Combine responses for debugging
+    full_response = f"""=== STEP 2: YOUTUBE DESCRIPTION ===
+
+{youtube_response}
+
+=== STEP 3: NEWSLETTER TEASER ===
+
+{newsletter_response}
+
+=== STEP 4: BLOG POST ===
+
+{blog_response}
+"""
+
+    return full_response, outputs
+
+
+def process_with_claude(transcript, api_key, selected_title, newsletter_examples=None):
+    """DEPRECATED: Old single-prompt approach. Use process_with_claude_pipeline instead.
+
+    This function is kept for backwards compatibility but will be removed in future versions.
+    The new multi-step pipeline is more reliable and produces better results.
+    """
+    client = anthropic.Anthropic(api_key=api_key)
+
     prompt = create_prompt(transcript, newsletter_examples)
-    
+
     # Add the selected title to the prompt
     prompt = f"""{prompt}
 
@@ -531,7 +805,7 @@ IMPORTANT: The user has selected this title for the video:
 "{selected_title}"
 
 Use this exact title as context when writing the description and newsletter article. The description and newsletter should align with and support this chosen title."""
-    
+
     print("\n  📝 Generating description and newsletter...")
     message = client.messages.create(
         model="claude-sonnet-4-20250514",
@@ -540,14 +814,164 @@ Use this exact title as context when writing the description and newsletter arti
             {"role": "user", "content": prompt}
         ]
     )
-    
+
     response_text = message.content[0].text
     print(f"  ✓ Response received ({len(response_text)} chars)")
-    
+
     return response_text
 
+def parse_youtube_description_response(response_text):
+    """Parse Step 2 response: YouTube description components"""
+    outputs = {
+        'hook': '',
+        'key_topics': '',
+        'timestamps': '',
+        'panelists': '',
+        'keywords': ''
+    }
+
+    # Extract hook
+    hook_match = re.search(r'HOOK:(.*?)(?=KEY_TOPICS:|TIMESTAMPS:|PANELISTS:|KEYWORDS:|$)',
+                          response_text, re.DOTALL | re.IGNORECASE)
+    if hook_match:
+        hook = hook_match.group(1).strip()
+        # Remove markdown formatting
+        hook = re.sub(r'\*\*', '', hook)
+        hook = re.sub(r'__', '', hook)
+        outputs['hook'] = hook
+        print(f"  ✓ Hook extracted ({len(hook)} chars)")
+    else:
+        print("  ⚠️  WARNING: HOOK section not found!")
+
+    # Extract key topics
+    topics_match = re.search(r'KEY_TOPICS:(.*?)(?=TIMESTAMPS:|PANELISTS:|KEYWORDS:|$)',
+                            response_text, re.DOTALL | re.IGNORECASE)
+    if topics_match:
+        topics = topics_match.group(1).strip()
+        # Remove markdown formatting
+        topics = re.sub(r'\*\*', '', topics)
+        topics = re.sub(r'__', '', topics)
+        outputs['key_topics'] = topics
+        print(f"  ✓ Key topics extracted")
+    else:
+        print("  ⚠️  WARNING: KEY_TOPICS section not found!")
+
+    # Extract timestamps
+    timestamps_match = re.search(r'TIMESTAMPS:(.*?)(?=PANELISTS:|KEYWORDS:|$)',
+                                response_text, re.DOTALL | re.IGNORECASE)
+    if timestamps_match:
+        timestamps = timestamps_match.group(1).strip()
+        # Remove markdown formatting
+        timestamps = re.sub(r'\*\*', '', timestamps)
+        timestamps = re.sub(r'__', '', timestamps)
+        outputs['timestamps'] = timestamps
+        print(f"  ✓ Timestamps extracted")
+    else:
+        print("  ⚠️  WARNING: TIMESTAMPS section not found!")
+
+    # Extract panelists
+    panelists_match = re.search(r'PANELISTS:(.*?)(?=KEYWORDS:|$)',
+                               response_text, re.DOTALL | re.IGNORECASE)
+    if panelists_match:
+        panelists = panelists_match.group(1).strip()
+        # Remove markdown formatting
+        panelists = re.sub(r'\*\*', '', panelists)
+        panelists = re.sub(r'__', '', panelists)
+        outputs['panelists'] = panelists
+        print(f"  ✓ Panelists extracted")
+    else:
+        print("  ⚠️  WARNING: PANELISTS section not found!")
+
+    # Extract keywords
+    keywords_match = re.search(r'KEYWORDS:(.*?)$',
+                              response_text, re.DOTALL | re.IGNORECASE)
+    if keywords_match:
+        keywords_raw = keywords_match.group(1).strip()
+        # Clean up keywords - remove hashtags if present, ensure comma separation
+        keywords_raw = keywords_raw.replace('#', '').strip()
+        # Remove markdown formatting
+        keywords_raw = re.sub(r'\*\*', '', keywords_raw)
+        keywords_raw = re.sub(r'__', '', keywords_raw)
+        # Take only the first line if there are multiple lines
+        keywords_lines = keywords_raw.split('\n')
+        keywords_raw = keywords_lines[0].strip()
+        # Remove any trailing numbers or periods (like "3.")
+        keywords_raw = re.sub(r'\s*\d+\.\s*$', '', keywords_raw)
+        # Remove any section markers like "===" that might have leaked in
+        keywords_raw = re.sub(r'^===.*$', '', keywords_raw).strip()
+        outputs['keywords'] = keywords_raw
+
+        # Validation: warn if keywords are empty or suspiciously short
+        if not keywords_raw:
+            print("  ⚠️  WARNING: KEYWORDS section is empty!")
+            print("  Claude did not generate keywords. Check full_response.txt for details.")
+        elif len(keywords_raw) < 20 or ',' not in keywords_raw:
+            print(f"  ⚠️  WARNING: KEYWORDS may be incomplete: '{keywords_raw[:50]}...'")
+        else:
+            print(f"  ✓ Keywords extracted ({len(keywords_raw.split(','))} keywords)")
+    else:
+        print("  ⚠️  WARNING: KEYWORDS section not found in response!")
+
+    return outputs
+
+
+def parse_newsletter_teaser_response(response_text):
+    """Parse Step 3 response: Newsletter teaser"""
+    # Extract newsletter teaser
+    teaser_match = re.search(r'NEWSLETTER\s+TEASER:\s*(.*?)$',
+                            response_text, re.DOTALL | re.IGNORECASE)
+    if teaser_match:
+        teaser = teaser_match.group(1).strip()
+        # Keep markdown formatting (bold, italics, links)
+        print(f"  ✓ Newsletter teaser extracted ({len(teaser)} chars)")
+        return teaser
+    else:
+        print("  ⚠️  WARNING: Newsletter teaser not found in response")
+        return ""
+
+
+def parse_blog_post_response(response_text):
+    """Parse Step 4 response: Blog post"""
+    # Extract blog post
+    blog_match = re.search(r'(?:LINKEDIN/?BLOG\s*POST|BLOG\s*POST):\s*(.*?)$',
+                          response_text, re.DOTALL | re.IGNORECASE)
+    if blog_match:
+        blog_post = blog_match.group(1).strip()
+
+        # Strip any email subject line - look for the "☕️ First Cup:" header
+        # If found at the beginning, keep it. If it's an email subject, remove it.
+        lines = blog_post.split('\n')
+        cleaned_lines = []
+        skip_subject = False
+
+        for i, line in enumerate(lines):
+            # Check if this looks like an email subject line (before the ☕️ First Cup: line)
+            if i == 0 and line.strip().startswith('Subject:'):
+                skip_subject = True
+                continue
+            if skip_subject and line.strip().startswith('☕️ First Cup:'):
+                skip_subject = False  # Found the real start, stop skipping
+
+            if not skip_subject:
+                cleaned_lines.append(line)
+
+        blog_post = '\n'.join(cleaned_lines).strip()
+
+        # Keep markdown formatting (bold, italics, links)
+        print(f"  ✓ Blog post extracted ({len(blog_post)} chars)")
+        return blog_post
+    else:
+        print("  ⚠️  WARNING: Blog post not found in response")
+        return ""
+
+
 def parse_response(response_text):
-    """Parse Claude's response into structured outputs"""
+    """DEPRECATED: Parse old mega-prompt response. Use specific parsers instead.
+
+    This function is kept for backwards compatibility with the old single-prompt approach.
+    New code should use parse_youtube_description_response, parse_newsletter_teaser_response,
+    and parse_blog_post_response instead.
+    """
     outputs = {
         'hook': '',
         'key_topics': '',
@@ -904,11 +1328,8 @@ def process_transcript_file(filepath, output_dir, api_key, template_path, exampl
                 slack.notify_cancelled(filepath.name)
             return None
 
-        # Process with Claude using the selected title and examples
-        response = process_with_claude(transcript, api_key, selected_title, newsletter_examples)
-
-        # Parse response into components
-        outputs = parse_response(response)
+        # Process with Claude using the new multi-step pipeline
+        response, outputs = process_with_claude_pipeline(transcript, api_key, selected_title, newsletter_examples)
 
         # Load and populate template
         template = load_template(template_path)

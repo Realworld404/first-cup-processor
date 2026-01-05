@@ -85,7 +85,14 @@ def check_for_emoji_reaction(channel, message_ts, bot_token, emoji_name=PUBLISH_
 
     try:
         response = requests.get(url, headers=headers, params=params, timeout=10)
-        data = response.json()
+        response.raise_for_status()  # Raise error for bad status codes
+
+        try:
+            data = response.json()
+        except ValueError as e:
+            print(f"  ⚠️ Invalid JSON response from Slack API: {e}")
+            print(f"  Response content: {response.text[:200]}")
+            return False
 
         if data.get("ok") and data.get("message", {}).get("reactions"):
             reactions = data["message"]["reactions"]
@@ -97,6 +104,8 @@ def check_for_emoji_reaction(channel, message_ts, bot_token, emoji_name=PUBLISH_
             if error != "no_reaction":  # no_reaction is expected when no reactions exist
                 print(f"  ⚠️ Slack API error: {error}")
 
+    except requests.exceptions.RequestException as e:
+        print(f"  ⚠️ HTTP request error: {e}")
     except Exception as e:
         print(f"  ⚠️ Error checking reactions: {e}")
 
@@ -115,7 +124,14 @@ def check_for_publish_reply(channel, thread_ts, bot_token):
 
     try:
         response = requests.get(url, headers=headers, params=params, timeout=10)
-        data = response.json()
+        response.raise_for_status()  # Raise error for bad status codes
+
+        try:
+            data = response.json()
+        except ValueError as e:
+            print(f"  ⚠️ Invalid JSON response from Slack API: {e}")
+            print(f"  Response content: {response.text[:200]}")
+            return False
 
         if data.get("ok") and data.get("messages"):
             messages = data["messages"]

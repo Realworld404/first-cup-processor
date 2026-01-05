@@ -77,8 +77,15 @@ class SlackHelper:
             payload["thread_ts"] = self.thread_ts
 
         try:
-            response = requests.post(url, headers=headers, json=payload)
-            data = response.json()
+            response = requests.post(url, headers=headers, json=payload, timeout=10)
+            response.raise_for_status()  # Raise error for bad HTTP status codes
+
+            try:
+                data = response.json()
+            except ValueError as e:
+                print(f"❌ Slack API returned invalid JSON: {e}")
+                print(f"   Response content: {response.text[:200]}")
+                return None
 
             if data.get("ok"):
                 # Store message timestamp
@@ -92,6 +99,9 @@ class SlackHelper:
             else:
                 print(f"❌ Slack API error: {data.get('error')}")
                 return None
+        except requests.exceptions.RequestException as e:
+            print(f"❌ Slack HTTP request failed: {e}")
+            return None
         except Exception as e:
             print(f"❌ Slack message error: {e}")
             return None
@@ -165,8 +175,15 @@ _Waiting for your response..._"""
                     return None, 'timeout'
 
             try:
-                response = requests.get(url, headers=headers, params=params)
-                data = response.json()
+                response = requests.get(url, headers=headers, params=params, timeout=10)
+                response.raise_for_status()
+
+                try:
+                    data = response.json()
+                except ValueError as e:
+                    print(f"  ⚠️ Invalid JSON from Slack API: {e}")
+                    time.sleep(poll_interval)
+                    continue
 
                 if data.get("ok") and data.get("messages"):
                     messages = data["messages"]
@@ -339,7 +356,12 @@ Please check WordPress credentials and try again."""
 
         try:
             response = requests.get(url, headers=headers, params=params, timeout=5)
-            data = response.json()
+            response.raise_for_status()
+
+            try:
+                data = response.json()
+            except ValueError:
+                return False  # Silent fail for background check
 
             if data.get("ok") and data.get("messages"):
                 messages = data["messages"]
@@ -399,7 +421,12 @@ Please check WordPress credentials and try again."""
 
         try:
             response = requests.get(url, headers=headers, params=params, timeout=5)
-            data = response.json()
+            response.raise_for_status()
+
+            try:
+                data = response.json()
+            except ValueError:
+                return False  # Silent fail for background check
 
             if data.get("ok") and data.get("message", {}).get("reactions"):
                 reactions = data["message"]["reactions"]
