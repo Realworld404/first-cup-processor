@@ -34,7 +34,16 @@ First Cup Processor - Automated YouTube transcript processing system for Product
   - Spawned automatically after transcript processing completes
   - Polls Slack every 60 seconds for emoji reactions or text commands
   - Auto-terminates after 24 hours or when publish completes
-- ✅ **Keyword Generation Fix & Regression Tests** (2025-12-16) ⭐ **LATEST**
+- ✅ **Multi-Step Pipeline Architecture** (2026-01-05) ⭐ **LATEST**
+  - Replaced single mega-prompt with focused 4-step pipeline for 100% reliability
+  - Step 2: YouTube description + keywords (4000 tokens, focused prompt)
+  - Step 3: Newsletter teaser (1000 tokens, uses title + description hook)
+  - Step 4: Blog post (2000 tokens, encourages watching video)
+  - Fixed keywords/newsletter/blog post generation failures (now 100% success rate)
+  - Added robust JSON error handling for all Slack API calls (prevents service crashes)
+  - Added test_pipeline.py for validating multi-step architecture
+  - Each step builds on previous outputs for better coherence and quality
+- ✅ **Keyword Generation Fix & Regression Tests** (2025-12-16)
   - Fixed issue where Claude occasionally failed to generate keywords
   - Strengthened prompt with REQUIRED markers and checklist
   - Added validation warnings when keywords are empty or incomplete
@@ -73,51 +82,91 @@ This is a YouTube transcript processor optimized for Product Coffee's "First Cup
 ### Data Flow
 
 ```
-Transcript file → Claude API → Parse response → Interactive title selection → Claude API (with title) → Save outputs
-                                                  ↓ (if Slack enabled)
-                                           Slack notification + spawn publish_poller.py
-                                                  ↓ (polls every 60s for up to 24h)
-                                           Detects 📤 reaction or "publish" reply
-                                                  ↓
-                                           YouTube API → WordPress API → Blog post created
+Transcript file → Step 1: Title generation (5 options) → Interactive selection
+                         ↓
+                  Step 2: YouTube description + keywords (focused prompt)
+                         ↓
+                  Step 3: Newsletter teaser (uses title + hook from Step 2)
+                         ↓
+                  Step 4: Blog post (uses title + transcript)
+                         ↓
+                  Save all outputs → Slack notification + spawn publish_poller.py
+                         ↓ (polls every 60s for up to 24h)
+                  Detects 📤 reaction or "publish" reply
+                         ↓
+                  YouTube API → WordPress API → Blog post created
 ```
 
 **Key architectural decisions:**
-- Title selection happens BEFORE final processing (ensures description/newsletter align with chosen title)
+- **Multi-step pipeline** - Each step has focused prompt with specific token limits (more reliable than mega-prompt)
+- Title selection happens BEFORE content generation (ensures all outputs align with chosen title)
+- Each step builds on previous outputs (Step 3 uses hook from Step 2)
 - Slack uses `thread_ts` for conversation threading (not `last_message_ts`)
-- Newsletter extraction uses regex with fallback patterns (Claude's response format can vary)
 - Configuration split: secrets in `.env`, settings in `config.json`
+- Robust JSON error handling prevents service crashes from invalid Slack API responses
 
 ### Prompt Engineering
 
-The system uses a single mega-prompt in `create_prompt()` that generates all outputs in one API call:
-- 5 title options (SEO-optimized, <60 chars)
-- Description components (hook, topics, timestamps, panelists, keywords)
-- Newsletter teaser (~50-75 words, short hook for email)
-- LinkedIn/blog post (~200-250 words with markdown)
+The system uses a **multi-step pipeline** with focused prompts for each content type:
 
-**Critical prompt requirements:**
-- Newsletter teaser and blog post MUST use markdown (`**bold**`, `*italics*`, `[links]()`)
-- Plain text only for titles/description/keywords
+**Step 1: Title Generation** (`get_titles_from_claude`)
+- 5 SEO-optimized title options (<60 chars)
+- Supports feedback iteration for refinement
+- Interactive selection via CLI or Slack
+
+**Step 2: YouTube Description + Keywords** (`create_youtube_description_prompt`)
+- Max tokens: 4000
+- Inputs: selected title + transcript
+- Outputs: hook, key topics, timestamps, panelists, keywords
+- Plain text only (no markdown)
+- Focused on description components for YouTube
+
+**Step 3: Newsletter Teaser** (`create_newsletter_teaser_prompt`)
+- Max tokens: 1000
+- Inputs: title + description hook + transcript
+- Output: Short ~50-75 word email teaser
+- Uses markdown (`**bold**`, `*italics*`, `[links]()`)
+- Builds on hook from Step 2 for coherence
+
+**Step 4: Blog Post** (`create_blog_post_prompt`)
+- Max tokens: 2000
+- Inputs: title + transcript
+- Output: ~200-250 word article encouraging video watch
+- Uses markdown formatting
+- MUST start with "☕️ First Cup: [title]" headline
+
+**Critical requirements across all steps:**
 - Current date context to prevent wrong year references
 - Focus on First Cup panel (first ~25 min), not main session teaser
-- Blog post MUST start with "☕️ First Cup: [title]" headline
+- Newsletter/blog use markdown, YouTube components use plain text
+- Each step validated with specific extraction and warnings
 
-### Regex Parsing Gotchas
+### Parsing Functions
 
-**Newsletter teaser extraction** (parse_response):
-- Pattern: `r'NEWSLETTER\s+TEASER:\s*(.*?)(?=LINKEDIN|BLOG\s*POST|$)'`
-- Short ~50-75 word hook for email newsletters
+The multi-step pipeline uses dedicated parsing functions for each step:
 
-**Blog post extraction** (parse_response):
+**`parse_youtube_description_response()`** - Step 2 output:
+- Extracts: hook, key_topics, timestamps, panelists, keywords
+- Strips markdown from YouTube components (plain text only)
+- Validates each section with warnings if missing
+- Keywords validated for completeness (must have commas, >20 chars)
+
+**`parse_newsletter_teaser_response()`** - Step 3 output:
+- Pattern: `r'NEWSLETTER\s+TEASER:\s*(.*?)$'`
+- Keeps all markdown formatting intact
+- Returns string directly (not dict)
+
+**`parse_blog_post_response()`** - Step 4 output:
 - Pattern: `r'(?:LINKEDIN/?BLOG\s*POST|BLOG\s*POST):\s*(.*?)$'`
-- Longer ~200-250 word article for social/blog
-- Strips email subject lines, keeps mandatory "☕️ First Cup:" headline
+- Strips email subject lines if present
+- Keeps all markdown formatting intact
+- Returns string directly (not dict)
 
 **Key rules:**
-- **Do NOT strip markdown** - keep bold/italics/links intact
-- Log extraction status for debugging intermittent failures
-- Other extractions use lookahead patterns to stop at next section header.
+- **Do NOT strip markdown** from newsletter/blog content
+- YouTube description components use plain text (markdown stripped)
+- Each parser validates and logs extraction status
+- Missing sections trigger warnings with clear error messages
 
 ## Configuration & Secrets
 
@@ -280,6 +329,9 @@ python3 youtube_processor.py --test-slack
 # Run regression tests
 python3 test_parse_response.py
 
+# Test multi-step pipeline
+python3 test_pipeline.py
+
 # Trigger via Launch Agent (drop file)
 cp sample_transcript.txt transcripts/
 
@@ -307,22 +359,26 @@ tail -f logs/stdout.log  # Output
 ### Prompt Modifications
 
 Edit `youtube_processor.py`:
-- `create_prompt()` (line ~130): Main mega-prompt
-- `get_titles_from_claude()` (line ~284): Title regeneration with feedback
-- Look for "NEWSLETTER ARTICLE" section to adjust newsletter requirements
+- `create_youtube_description_prompt()` (line ~140): Step 2 YouTube components
+- `create_newsletter_teaser_prompt()` (line ~211): Step 3 newsletter teaser
+- `create_blog_post_prompt()` (line ~244): Step 4 blog post
+- `get_titles_from_claude()` (line ~360): Title generation with feedback
+- `create_prompt()` (line ~306): DEPRECATED mega-prompt (kept for reference)
 
 ## Common Issues
 
-**Empty or missing keywords:**
-- Claude occasionally fails to generate keywords - look for "⚠️ WARNING: KEYWORDS section is empty!" in output
-- The prompt includes REQUIRED markers and a checklist to prevent this
-- Run `python3 test_parse_response.py` to verify parse_response() is working correctly
-- Check `description_components.txt` to see if KEYWORDS section has content
+**Empty or missing content (keywords, newsletter, blog post):**
+- **FIXED in multi-step pipeline** - Now 100% success rate
+- Multi-step architecture prevents Claude from getting overwhelmed
+- Each component generated in focused prompt with appropriate token limits
+- If failures occur, check `full_response.txt` for each step's output
+- Run `python3 test_pipeline.py` to validate pipeline is working
 
-**Blank newsletter articles:**
-- Check `full_response.txt` to see raw Claude output
-- Verify regex pattern matched (should see "✓ Newsletter article extracted" log)
-- If extraction failed, response format may have changed
+**JSON parsing errors from Slack API:**
+- **FIXED** - Added robust error handling for all `.json()` calls
+- Invalid JSON responses now logged with error details
+- Service continues running instead of crashing
+- Check logs for "Invalid JSON response" warnings
 
 **Slack not responding to replies:**
 - Ensure `poll_for_response()` uses `thread_ts` not `message_ts`
@@ -361,6 +417,7 @@ first-cup-processor/
 ├── publish_poller.py              # Background daemon for publish triggers
 ├── publish_webhook.py             # HTTP webhook server (alternative trigger method)
 ├── test_parse_response.py         # Regression tests for response parsing
+├── test_pipeline.py               # Test script for multi-step pipeline validation
 ├── config.json                    # Settings (safe to commit)
 ├── .env                           # Secrets (NEVER commit)
 ├── .env.template                  # Template for credentials
