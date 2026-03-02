@@ -34,7 +34,15 @@ First Cup Processor - Automated YouTube transcript processing system for Product
   - Spawned automatically after transcript processing completes
   - Polls Slack every 60 seconds for emoji reactions or text commands
   - Auto-terminates after 24 hours or when publish completes
-- ✅ **Multi-Step Pipeline Architecture** (2026-01-05) ⭐ **LATEST**
+- ✅ **API Credits Exhaustion — Pause & Resume** (2026-03-01) ⭐ **LATEST**
+  - Fixed bug where credits exhaustion permanently marked file as FAILED_ and never retried
+  - `APICreditsExhaustedError` now pauses the watcher instead of failing
+  - With Slack: sends top-level notification via `notify_credits_exhausted()`, then blocks via `poll_for_resume()` (polls every 30s for "resume" reply)
+  - Without Slack: sets module-level `_credits_paused_for_file` flag; watch loop pauses with instructions to restart
+  - File is NOT marked FAILED_ — will be retried automatically after resume
+  - `APIRateLimitError` retains original FAILED_ behavior (intentional: rate limits are temporary, not actionable)
+  - New methods in `slack_helper.py`: `notify_credits_exhausted()` (top-level message, not threaded) and `poll_for_resume()` (blocks until "resume" reply)
+- ✅ **Multi-Step Pipeline Architecture** (2026-01-05)
   - Replaced single mega-prompt with focused 4-step pipeline for 100% reliability
   - Step 2: YouTube description + keywords (4000 tokens, focused prompt)
   - Step 3: Newsletter teaser (1000 tokens, uses title + description hook)
@@ -66,6 +74,7 @@ This is a YouTube transcript processor optimized for Product Coffee's "First Cup
 - Interactive polling (waits indefinitely for user responses)
 - Notification lifecycle (start → titles → selection → completion → publish)
 - Publish command support (reply "publish" to post to WordPress)
+- Credits exhaustion alerts: `notify_credits_exhausted()` sends a top-level (non-threaded) message; `poll_for_resume()` blocks until user replies "resume"
 
 **blog_publisher.py** - WordPress blog publishing:
 - WordPress REST API integration with HTTPBasicAuth
@@ -104,6 +113,7 @@ Transcript file → Step 1: Title generation (5 options) → Interactive selecti
 - Slack uses `thread_ts` for conversation threading (not `last_message_ts`)
 - Configuration split: secrets in `.env`, settings in `config.json`
 - Robust JSON error handling prevents service crashes from invalid Slack API responses
+- **Credits exhaustion pauses, rate limits fail** - `APICreditsExhaustedError` is retryable (user can add funds and resume); `APIRateLimitError` marks FAILED_ because it auto-resolves without user action. Module flag `_credits_paused_for_file` coordinates between the processor function and the watch loop when Slack is unavailable
 
 ### Prompt Engineering
 
@@ -373,6 +383,13 @@ Edit `youtube_processor.py`:
 - Each component generated in focused prompt with appropriate token limits
 - If failures occur, check `full_response.txt` for each step's output
 - Run `python3 test_pipeline.py` to validate pipeline is working
+
+**API credits exhausted (processor pauses instead of failing):**
+- **FIXED (2026-03-01)** - File is no longer marked FAILED_; processor pauses and waits
+- With Slack: reply "resume" in the Slack thread after adding credits; processor retries automatically
+- Without Slack: watch loop prints billing URL + restart instructions; restart the processor after adding credits
+- Rate limit errors (`APIRateLimitError`) still mark FAILED_ — this is intentional, as rate limits resolve automatically and the file can be manually re-queued when ready
+- Check logs for "API CREDITS EXHAUSTED" or "RATE LIMIT HIT" to distinguish the two cases
 
 **JSON parsing errors from Slack API:**
 - **FIXED** - Added robust error handling for all `.json()` calls
