@@ -553,20 +553,12 @@ TITLE 4: [title]
 TITLE 5: [title]"""
     
     print("  Generating titles from Claude API...")
-    message = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=2000,
-        messages=[
-            {"role": "user", "content": prompt}
-        ]
-    )
-    
-    response_text = message.content[0].text
-    
+    response_text = call_claude_api(client, prompt, max_tokens=2000, step_name="Title generation")
+
     # Extract titles
     title_pattern = r'TITLE \d+: (.+?)(?=\n|$)'
     titles = re.findall(title_pattern, response_text)
-    
+
     return titles
 
 def interactive_title_selection(transcript, api_key, newsletter_examples=None, slack=None, filename=""):
@@ -690,16 +682,60 @@ def interactive_title_selection_slack(titles, transcript, api_key, newsletter_ex
             print("⚠️  No response received from Slack")
             return None
 
+# Module-level flag: set to the filename that triggered the credits error so the
+# watcher loop knows to pause and wait for a 'resume' signal before retrying.
+_credits_paused_for_file = None
+
+
+class APICreditsExhaustedError(Exception):
+    """Raised when API credits are exhausted or billing issue occurs"""
+    pass
+
+
+class APIRateLimitError(Exception):
+    """Raised when rate limit is hit and we should stop (not retry)"""
+    pass
+
+
 def call_claude_api(client, prompt, max_tokens=8000, step_name="Processing"):
-    """Helper function to call Claude API with consistent error handling"""
+    """Helper function to call Claude API with consistent error handling.
+
+    Raises:
+        APICreditsExhaustedError: When credits are exhausted (stops processing)
+        APIRateLimitError: When rate limit is hit (stops processing)
+    """
     print(f"\n  📝 {step_name}...")
-    message = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=max_tokens,
-        messages=[
-            {"role": "user", "content": prompt}
-        ]
-    )
+
+    try:
+        message = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=max_tokens,
+            messages=[
+                {"role": "user", "content": prompt}
+            ]
+        )
+    except anthropic.RateLimitError as e:
+        error_msg = str(e)
+        # Check if it's a credits/billing issue vs just rate limit
+        if "credit" in error_msg.lower() or "billing" in error_msg.lower() or "payment" in error_msg.lower():
+            raise APICreditsExhaustedError(
+                f"💳 API CREDITS EXHAUSTED\n"
+                f"Add credits at: https://console.anthropic.com/settings/billing\n"
+                f"Original error: {error_msg}"
+            )
+        else:
+            raise APIRateLimitError(
+                f"⏱️ RATE LIMIT HIT\n"
+                f"Your API tier has a 30k tokens/minute limit.\n"
+                f"Wait a few minutes and try again, or upgrade your API tier.\n"
+                f"Original error: {error_msg}"
+            )
+    except anthropic.AuthenticationError as e:
+        raise APICreditsExhaustedError(
+            f"🔑 API KEY INVALID OR EXPIRED\n"
+            f"Check your API key at: https://console.anthropic.com/settings/keys\n"
+            f"Original error: {e}"
+        )
 
     response_text = message.content[0].text
     print(f"  ✓ Response received ({len(response_text)} chars)")
@@ -714,8 +750,13 @@ def process_with_claude_pipeline(transcript, api_key, selected_title, newsletter
     Step 2: YouTube description + keywords from title + transcript
     Step 3: Newsletter teaser from title + description hook + transcript
     Step 4: Blog post from title + transcript (encourages watching)
+
+    Note: 30-second delays between API calls to avoid rate limits (30k tokens/min)
     """
     client = anthropic.Anthropic(api_key=api_key)
+
+    # Rate limit delay (seconds) - prevents 429 errors on lower API tiers
+    RATE_LIMIT_DELAY = 30
 
     # Step 2: Generate YouTube description and keywords
     print("\n🔄 Step 2/4: Generating YouTube description and keywords...")
@@ -729,6 +770,10 @@ def process_with_claude_pipeline(transcript, api_key, selected_title, newsletter
 
     # Parse YouTube description components
     youtube_outputs = parse_youtube_description_response(youtube_response)
+
+    # Delay to avoid rate limit
+    print(f"  ⏳ Waiting {RATE_LIMIT_DELAY}s to avoid rate limit...")
+    time.sleep(RATE_LIMIT_DELAY)
 
     # Step 3: Generate newsletter teaser using title + description hook
     print("\n🔄 Step 3/4: Generating newsletter teaser...")
@@ -746,6 +791,10 @@ def process_with_claude_pipeline(transcript, api_key, selected_title, newsletter
 
     # Parse newsletter teaser
     newsletter_teaser = parse_newsletter_teaser_response(newsletter_response)
+
+    # Delay to avoid rate limit
+    print(f"  ⏳ Waiting {RATE_LIMIT_DELAY}s to avoid rate limit...")
+    time.sleep(RATE_LIMIT_DELAY)
 
     # Step 4: Generate blog post
     print("\n🔄 Step 4/4: Generating blog post...")
@@ -1357,6 +1406,38 @@ def process_transcript_file(filepath, output_dir, api_key, template_path, exampl
 
         return output_path
 
+    except APICreditsExhaustedError as e:
+        global _credits_paused_for_file
+        error_msg = str(e)
+        print(f"\n  🛑 {error_msg}")
+        print(f"  ⏸️  Processing paused. Recharge credits then reply 'resume' in Slack (or restart the processor).")
+
+        # Alert via Slack and wait for resume signal
+        if slack and slack.is_enabled():
+            slack.notify_credits_exhausted(filepath.name)
+            slack.poll_for_resume()
+            # Clear the pause flag - watcher will retry this file on next loop
+            _credits_paused_for_file = None
+        else:
+            # No Slack: set flag so watch_directory loop can pause and wait
+            _credits_paused_for_file = filepath.name
+
+        # Do NOT mark file as FAILED — return None so it will be retried
+        return None
+
+    except APIRateLimitError as e:
+        # Rate limit (not credits) - still non-retryable per original behaviour
+        error_msg = str(e)
+        print(f"\n  🛑 {error_msg}")
+
+        if slack and slack.is_enabled():
+            slack.notify_error(filepath.name, error_msg)
+
+        # Mark as failed to prevent immediate retry loop (rate limit resolves on its own)
+        save_processed_file(output_dir, f"FAILED_{filepath.name}")
+
+        return None
+
     except Exception as e:
         print(f"\n  ❌ Error processing {filepath.name}: {e}")
 
@@ -1364,7 +1445,8 @@ def process_transcript_file(filepath, output_dir, api_key, template_path, exampl
         if slack and slack.is_enabled():
             slack.notify_error(filepath.name, str(e))
 
-        raise
+        # For other errors, also don't crash the watcher
+        return None
 
 def watch_directory(watch_dir, output_dir, api_key, template_path, examples_path, config=None):
     """Watch directory for new transcript files"""
@@ -1419,6 +1501,15 @@ def watch_directory(watch_dir, output_dir, api_key, template_path, examples_path
 
     while True:
         try:
+            # If credits were exhausted and Slack is unavailable, pause here until
+            # the user restarts the processor (credits refilled externally).
+            if _credits_paused_for_file and not (slack and slack.is_enabled()):
+                print(f"  ⏸️  Paused due to exhausted API credits (file: {_credits_paused_for_file})")
+                print(f"      Add credits at https://console.anthropic.com/settings/billing")
+                print(f"      Then restart the processor to retry.")
+                time.sleep(WATCH_INTERVAL)
+                continue
+
             # Find all transcript files
             transcript_files = []
             for ext in ['*.txt', '*.md', '*.json']:
@@ -1433,19 +1524,20 @@ def watch_directory(watch_dir, output_dir, api_key, template_path, examples_path
                 if filepath.name == template_path.name or filepath.name == examples_path.name:
                     continue
 
-                if filepath.name not in processed:
-                    try:
-                        process_transcript_file(
-                            filepath,
-                            output_dir,
-                            api_key,
-                            template_path,
-                            examples_path,
-                            slack=slack
-                        )
+                if filepath.name not in processed and f"FAILED_{filepath.name}" not in processed:
+                    result = process_transcript_file(
+                        filepath,
+                        output_dir,
+                        api_key,
+                        template_path,
+                        examples_path,
+                        slack=slack
+                    )
+                    if result:
                         processed.append(filepath.name)
-                    except Exception as e:
-                        print(f"  ❌ Error processing {filepath.name}: {e}")
+                    # If result is None, the file was either failed (marked as FAILED_)
+                    # or cancelled - reload processed list to get latest state
+                    processed = load_processed_files(output_dir)
 
             # Check for publish commands while idle
             if slack and slack.is_enabled():

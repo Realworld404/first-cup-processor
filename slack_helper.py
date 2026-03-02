@@ -261,6 +261,62 @@ Ready to use! 🎉
 _You have 24 hours to publish._"""
         self.send_message(text)
 
+    def notify_credits_exhausted(self, filename):
+        """Notify that API credits are exhausted and processing is paused"""
+        text = f"""💳 *API Credits Exhausted — Processing Paused*
+
+File: `{filename}` is waiting to be processed.
+
+1. Add credits at: https://console.anthropic.com/settings/billing
+2. Reply *resume* in this thread when ready
+
+_The processor will retry the file automatically._"""
+        self.send_message(text, in_thread=False)
+
+    def poll_for_resume(self, poll_interval=30):
+        """
+        Block until the user replies 'resume' in the credits-exhausted thread.
+        Returns True when resume is received.
+        """
+        if not self.bot_token or not self.thread_ts:
+            return True  # No Slack - fall back to time-based retry
+
+        url = "https://slack.com/api/conversations.replies"
+        headers = {"Authorization": f"Bearer {self.bot_token}"}
+        params = {
+            "channel": self.user_id,
+            "ts": self.thread_ts,
+            "limit": 20,
+        }
+
+        processed_messages = set()
+        print("  ⏸️  Paused — reply 'resume' in Slack to continue processing...")
+
+        while True:
+            try:
+                response = requests.get(url, headers=headers, params=params, timeout=10)
+                response.raise_for_status()
+                try:
+                    data = response.json()
+                except ValueError:
+                    time.sleep(poll_interval)
+                    continue
+
+                if data.get("ok") and data.get("messages"):
+                    for msg in data["messages"][1:]:  # Skip thread root
+                        ts = msg.get("ts")
+                        if ts in processed_messages:
+                            continue
+                        processed_messages.add(ts)
+                        if msg.get("user") and not msg.get("bot_id"):
+                            if msg.get("text", "").strip().lower() == "resume":
+                                print("  ▶️  Resume command received!")
+                                return True
+            except Exception as e:
+                print(f"  ⚠️  Slack poll error: {e}")
+
+            time.sleep(poll_interval)
+
     def notify_error(self, filename, error_message):
         """Notify that an error occurred"""
         text = f"""❌ *Error Processing Transcript*
@@ -480,3 +536,194 @@ Please check WordPress credentials and try again."""
         except Exception as e:
             print(f"  ⚠️ Error saving poller state: {e}")
             return False
+
+    def upload_file(self, filepath, title=None, initial_comment=None, channel=None):
+        """
+        Upload a file to Slack.
+
+        Args:
+            filepath: Path to the file to upload
+            title: Optional title for the file
+            initial_comment: Optional message to accompany the file
+            channel: Optional channel (defaults to user_id)
+
+        Returns:
+            dict with file info if successful, None otherwise
+        """
+        if not self.bot_token:
+            return None
+
+        url = "https://slack.com/api/files.upload"
+        headers = {
+            "Authorization": f"Bearer {self.bot_token}",
+        }
+
+        # Prepare the multipart form data
+        data = {
+            "channels": channel or self.user_id,
+        }
+
+        if title:
+            data["title"] = title
+
+        if initial_comment:
+            data["initial_comment"] = initial_comment
+
+        # Add to thread if we have a thread_ts
+        if self.thread_ts:
+            data["thread_ts"] = self.thread_ts
+
+        try:
+            with open(filepath, 'rb') as f:
+                files = {"file": f}
+                response = requests.post(url, headers=headers, data=data, files=files, timeout=60)
+                response.raise_for_status()
+
+            try:
+                result = response.json()
+            except ValueError as e:
+                print(f"❌ Slack file upload returned invalid JSON: {e}")
+                return None
+
+            if result.get("ok"):
+                return result.get("file")
+            else:
+                print(f"❌ Slack file upload error: {result.get('error')}")
+                return None
+
+        except Exception as e:
+            print(f"❌ Error uploading file to Slack: {e}")
+            return None
+
+    def send_thumbnail_options(self, thumbnail_paths, title):
+        """
+        Send thumbnail options to Slack for selection.
+
+        Args:
+            thumbnail_paths: List of thumbnail file paths
+            title: Episode title
+
+        Returns:
+            thread_ts for polling responses
+        """
+        # Send initial message
+        message = f"""🖼️ *Thumbnail Options for:* {title}
+
+Generated 5 different thumbnail styles. Review and select your favorite!
+
+*Reply with:*
+• A number (1-5) to select that thumbnail
+• `1: make it more colorful` - to regenerate with feedback
+• `regenerate all` - to generate all new thumbnails
+• `done` - when finished"""
+
+        self.send_message(message)
+
+        # Upload each thumbnail
+        from pathlib import Path
+        for i, path in enumerate(thumbnail_paths, 1):
+            path = Path(path)
+            if path.exists():
+                # Extract style name from filename (thumbnail_1_bold_question.png -> bold_question)
+                parts = path.stem.split('_')
+                if len(parts) >= 3:
+                    style_key = '_'.join(parts[2:])
+                else:
+                    style_key = f"style_{i}"
+
+                self.upload_file(
+                    str(path),
+                    title=f"Option {i}: {style_key.replace('_', ' ').title()}",
+                    initial_comment=f"*Thumbnail {i}*"
+                )
+
+        return self.thread_ts
+
+    def poll_for_thumbnail_response(self, timeout_seconds=None):
+        """
+        Poll for thumbnail selection response.
+
+        Returns: (response_text, response_type)
+        response_type: 'select', 'feedback', 'regenerate_all', 'done', or 'timeout'
+        """
+        if not self.bot_token or not self.thread_ts:
+            return None, None
+
+        url = "https://slack.com/api/conversations.replies"
+        headers = {"Authorization": f"Bearer {self.bot_token}"}
+        params = {
+            "channel": self.user_id,
+            "ts": self.thread_ts,
+            "limit": 20
+        }
+
+        start_time = datetime.now()
+        poll_interval = 5
+        processed_messages = set()
+
+        print("  ⏳ Waiting for thumbnail selection in Slack...")
+
+        while True:
+            if timeout_seconds:
+                elapsed = (datetime.now() - start_time).total_seconds()
+                if elapsed > timeout_seconds:
+                    return None, 'timeout'
+
+            try:
+                response = requests.get(url, headers=headers, params=params, timeout=10)
+                response.raise_for_status()
+
+                try:
+                    data = response.json()
+                except ValueError:
+                    time.sleep(poll_interval)
+                    continue
+
+                if data.get("ok") and data.get("messages"):
+                    messages = data["messages"]
+
+                    for msg in messages[1:]:  # Skip first message
+                        msg_ts = msg.get("ts", "")
+
+                        if msg_ts in processed_messages:
+                            continue
+
+                        if msg.get("user") and not msg.get("bot_id"):
+                            reply_text = msg.get("text", "").strip()
+                            processed_messages.add(msg_ts)
+
+                            reply_lower = reply_text.lower()
+
+                            # Check for done
+                            if reply_lower == 'done':
+                                return reply_text, 'done'
+
+                            # Check for regenerate all
+                            if reply_lower in ['regenerate all', 'regenerate', 'all']:
+                                return reply_text, 'regenerate_all'
+
+                            # Check for feedback (e.g., "1: make it more colorful")
+                            if ':' in reply_text:
+                                parts = reply_text.split(':', 1)
+                                if parts[0].strip().isdigit():
+                                    num = int(parts[0].strip())
+                                    if 1 <= num <= 5:
+                                        feedback = parts[1].strip()
+                                        return f"{num}:{feedback}", 'feedback'
+
+                            # Check for simple number selection
+                            if reply_text.isdigit() and 1 <= int(reply_text) <= 5:
+                                return reply_text, 'select'
+
+                            # Invalid response
+                            help_text = """⚠️ Invalid response. Please reply with:
+• A number (1-5) to select
+• `1: your feedback` to regenerate with changes
+• `regenerate all` for new thumbnails
+• `done` when finished"""
+                            self.send_message(help_text)
+
+            except Exception as e:
+                print(f"  ⚠️ Error polling Slack: {e}")
+
+            time.sleep(poll_interval)
