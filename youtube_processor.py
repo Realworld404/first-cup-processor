@@ -51,7 +51,17 @@ except ImportError:
 ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
 WATCH_INTERVAL = 10  # seconds between directory checks
 PROCESSED_FILE = '.processed_transcripts.json'
-MODEL = 'claude-sonnet-5'
+
+# The model ID is NOT defined here. It lives behind model_registry.get_model() so
+# there is exactly one place it can go stale, and one place to update it when a
+# model is retired. test_model_registry.py fails the build if a literal creeps back.
+from model_registry import (  # noqa: E402
+    DEFAULT_MODEL,
+    ModelUnavailableError,
+    get_model,
+    set_model,
+    suggest_alternatives,
+)
 
 def load_config():
     """Load configuration from config.json"""
@@ -68,7 +78,7 @@ def load_config():
             "newsletter_examples": "./newsletter_examples.md"
         },
         "api": {
-            "model": MODEL,
+            "model": DEFAULT_MODEL,
             "watch_interval": 10
         },
         "slack": {
@@ -687,6 +697,11 @@ def interactive_title_selection_slack(titles, transcript, api_key, newsletter_ex
 # watcher loop knows to pause and wait for a 'resume' signal before retrying.
 _credits_paused_for_file = None
 
+# Same idea for a retired/unavailable model, when Slack isn't available to ask
+# which replacement to use. Without this the watcher would hot-loop on a model
+# that can never succeed (the 2026-07-14 outage).
+_model_paused_for_file = None
+
 
 class APICreditsExhaustedError(Exception):
     """Raised when API credits are exhausted or billing issue occurs"""
@@ -704,12 +719,16 @@ def call_claude_api(client, prompt, max_tokens=8000, step_name="Processing"):
     Raises:
         APICreditsExhaustedError: When credits are exhausted (stops processing)
         APIRateLimitError: When rate limit is hit (stops processing)
+        ModelUnavailableError: When the configured model is retired/unavailable
+            (pauses so the user can pick a replacement)
     """
     print(f"\n  📝 {step_name}...")
 
+    model = get_model()
+
     try:
         message = client.messages.create(
-            model=MODEL,
+            model=model,
             max_tokens=max_tokens,
             # Thinking tokens count against max_tokens; the per-step budgets here
             # are sized for prose only.
@@ -717,6 +736,16 @@ def call_claude_api(client, prompt, max_tokens=8000, step_name="Processing"):
             messages=[
                 {"role": "user", "content": prompt}
             ]
+        )
+    except anthropic.NotFoundError as e:
+        # A retired/renamed model, or one this key can't access. Must NOT fall
+        # through to the generic handler — that's what caused the silent
+        # crash-loop when claude-sonnet-4-20250514 was retired.
+        raise ModelUnavailableError(
+            f"🚫 MODEL UNAVAILABLE: {model}\n"
+            f"The API rejected this model (retired, renamed, or not on your plan).\n"
+            f"Original error: {e}",
+            model=model,
         )
     except anthropic.RateLimitError as e:
         error_msg = str(e)
@@ -1430,6 +1459,39 @@ def process_transcript_file(filepath, output_dir, api_key, template_path, exampl
         # Do NOT mark file as FAILED — return None so it will be retried
         return None
 
+    except ModelUnavailableError as e:
+        # The configured model is gone. Offer live alternatives and let the user
+        # choose; persist the choice so it survives a restart. Like credits
+        # exhaustion (and unlike a rate limit) this is retryable once a human
+        # acts, so the file is NOT marked FAILED_ — it retries automatically.
+        global _model_paused_for_file
+        print(f"\n  🛑 {e}")
+
+        alternatives = suggest_alternatives(client, e.model)
+
+        if slack and slack.is_enabled():
+            slack.notify_model_unavailable(e.model, alternatives, filepath.name)
+            choice = slack.poll_for_model_choice(alternatives)
+            if choice:
+                set_model(choice)
+                print(f"  ✅ Model updated to {choice} — retrying {filepath.name}")
+                slack.notify_model_selected(choice)
+                _model_paused_for_file = None
+            else:
+                _model_paused_for_file = filepath.name
+        else:
+            # No Slack: pause the watch loop with actionable instructions.
+            _model_paused_for_file = filepath.name
+            print("\n  Available replacements:")
+            for i, alt in enumerate(alternatives[:5], 1):
+                print(f"    {i}. {alt}")
+            print("\n  Set one via either:")
+            print("    • config.json  ->  \"api\": { \"model\": \"<model-id>\" }")
+            print("    • env var      ->  export ANTHROPIC_MODEL=<model-id>")
+            print("  Then restart the processor; the file will be retried.")
+
+        return None
+
     except APIRateLimitError as e:
         # Rate limit (not credits) - still non-retryable per original behaviour
         error_msg = str(e)
@@ -1512,6 +1574,16 @@ def watch_directory(watch_dir, output_dir, api_key, template_path, examples_path
                 print(f"  ⏸️  Paused due to exhausted API credits (file: {_credits_paused_for_file})")
                 print(f"      Add credits at https://console.anthropic.com/settings/billing")
                 print(f"      Then restart the processor to retry.")
+                time.sleep(WATCH_INTERVAL)
+                continue
+
+            # If the configured model is unavailable and there's no Slack to ask
+            # which replacement to use, pause rather than hot-looping on a model
+            # that can never succeed.
+            if _model_paused_for_file:
+                print(f"  ⏸️  Paused: model '{get_model()}' is unavailable (file: {_model_paused_for_file})")
+                print(f"      Set a working model in config.json (api.model) or ANTHROPIC_MODEL,")
+                print(f"      then restart the processor to retry.")
                 time.sleep(WATCH_INTERVAL)
                 continue
 

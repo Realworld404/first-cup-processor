@@ -317,6 +317,107 @@ _The processor will retry the file automatically._"""
 
             time.sleep(poll_interval)
 
+    def notify_model_unavailable(self, model, alternatives, filename):
+        """The configured Claude model is retired/unavailable — ask for a replacement.
+
+        Top-level (not threaded), like the credits alert: this is an operator
+        alert about the service itself, not about one transcript's thread.
+        """
+        options = "\n".join(
+            f"  *{i}.* `{alt}`" for i, alt in enumerate(alternatives[:5], 1)
+        )
+        text = f"""🚫 *Model Unavailable — Processing Paused*
+
+The model `{model}` was rejected by the API (retired, renamed, or not on your plan).
+
+File waiting: `{filename}`
+
+*Reply with a number to switch models:*
+{options}
+
+_You can also reply with a full model ID. Your choice is saved to config.json and used from now on._"""
+        self.send_message(text, in_thread=False)
+
+    def poll_for_model_choice(self, alternatives, poll_interval=30, timeout_seconds=None):
+        """Block until the user picks a replacement model. Returns the model ID.
+
+        Accepts either a 1-based index ("2") or a full model ID. Re-prompts on an
+        unrecognised reply rather than guessing — silently picking the wrong model
+        would generate a whole episode's content on it.
+        """
+        if not self.bot_token or not self.thread_ts:
+            return None  # No Slack — caller falls back to the config/env path
+
+        url = "https://slack.com/api/conversations.replies"
+        headers = {"Authorization": f"Bearer {self.bot_token}"}
+        params = {"channel": self.user_id, "ts": self.thread_ts, "limit": 20}
+
+        processed_messages = set()
+        started = time.time()
+        print("  ⏸️  Paused — reply in Slack with the model to switch to...")
+
+        while True:
+            if timeout_seconds and (time.time() - started) > timeout_seconds:
+                print("  ⏱️  Timed out waiting for a model choice")
+                return None
+
+            try:
+                response = requests.get(url, headers=headers, params=params, timeout=10)
+                response.raise_for_status()
+                try:
+                    data = response.json()
+                except ValueError:
+                    time.sleep(poll_interval)
+                    continue
+
+                if data.get("ok") and data.get("messages"):
+                    for msg in data["messages"][1:]:  # Skip thread root
+                        ts = msg.get("ts")
+                        if ts in processed_messages:
+                            continue
+                        processed_messages.add(ts)
+                        if not msg.get("user") or msg.get("bot_id"):
+                            continue
+
+                        reply = msg.get("text", "").strip()
+                        if not reply:
+                            continue
+
+                        # 1-based index into the offered list
+                        if reply.isdigit():
+                            idx = int(reply) - 1
+                            if 0 <= idx < len(alternatives):
+                                choice = alternatives[idx]
+                                print(f"  ✅ Model choice received: {choice}")
+                                return choice
+                            self.send_message(
+                                f"⚠️ `{reply}` isn't one of the options — "
+                                f"reply 1-{min(len(alternatives), 5)} or a full model ID."
+                            )
+                            continue
+
+                        # Full model ID (allow any, in case the offered list is stale)
+                        if reply.startswith("claude-"):
+                            print(f"  ✅ Model choice received: {reply}")
+                            return reply
+
+                        self.send_message(
+                            "⚠️ Didn't recognise that. Reply with a number from the "
+                            "list above, or a full model ID like `claude-sonnet-5`."
+                        )
+            except Exception as e:
+                print(f"  ⚠️  Slack poll error: {e}")
+
+            time.sleep(poll_interval)
+
+    def notify_model_selected(self, model):
+        """Confirm the new model was saved and processing is resuming."""
+        self.send_message(
+            f"✅ Model switched to `{model}` and saved to config.json.\n"
+            f"_Retrying the waiting transcript now._",
+            in_thread=False,
+        )
+
     def notify_error(self, filename, error_message):
         """Notify that an error occurred"""
         text = f"""❌ *Error Processing Transcript*
