@@ -8,7 +8,7 @@
     "newsletter_examples": "./newsletter_examples.md"
   },
   "api": {
-    "model": "claude-sonnet-4-20250514",
+    "model": "claude-sonnet-5",
     "watch_interval": 10
   },
   "slack": {
