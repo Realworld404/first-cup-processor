@@ -51,6 +51,7 @@ except ImportError:
 ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
 WATCH_INTERVAL = 10  # seconds between directory checks
 PROCESSED_FILE = '.processed_transcripts.json'
+MODEL = 'claude-sonnet-5'
 
 def load_config():
     """Load configuration from config.json"""
@@ -67,7 +68,7 @@ def load_config():
             "newsletter_examples": "./newsletter_examples.md"
         },
         "api": {
-            "model": "claude-sonnet-4-20250514",
+            "model": MODEL,
             "watch_interval": 10
         },
         "slack": {
@@ -708,8 +709,11 @@ def call_claude_api(client, prompt, max_tokens=8000, step_name="Processing"):
 
     try:
         message = client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model=MODEL,
             max_tokens=max_tokens,
+            # Thinking tokens count against max_tokens; the per-step budgets here
+            # are sized for prose only.
+            thinking={"type": "disabled"},
             messages=[
                 {"role": "user", "content": prompt}
             ]
@@ -857,8 +861,9 @@ Use this exact title as context when writing the description and newsletter arti
 
     print("\n  📝 Generating description and newsletter...")
     message = client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model=MODEL,
         max_tokens=16000,
+        thinking={"type": "disabled"},
         messages=[
             {"role": "user", "content": prompt}
         ]
