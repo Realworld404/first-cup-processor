@@ -34,7 +34,15 @@ First Cup Processor - Automated YouTube transcript processing system for Product
   - Spawned automatically after transcript processing completes
   - Polls Slack every 60 seconds for emoji reactions or text commands
   - Auto-terminates after 24 hours or when publish completes
-- ✅ **API Credits Exhaustion — Pause & Resume** (2026-03-01) ⭐ **LATEST**
+- ✅ **Model Deprecation Fallback + Single Model Funnel** (2026-07-15) ⭐ **LATEST**
+  - Fixed a total outage: the pinned model `claude-sonnet-4-20250514` was retired, every API call 404'd, and the watcher crash-looped (silently, because `KeepAlive` respawns it) for weeks
+  - Root fix, not just the symptom: the model ID had two homes (a hardcoded `MODEL` constant + a decorative `config.json api.model`). Both now collapse into `model_registry.get_model()` — `config.json api.model` is the live source of truth (default `claude-sonnet-5`; `ANTHROPIC_MODEL` env var overrides)
+  - New `model_registry.py`: `get_model()` / `set_model()` (persist to config.json), `ModelUnavailableError`, `suggest_alternatives()` (sourced from the LIVE Models API, same-family first — never a hardcoded list)
+  - `call_claude_api()` now maps `anthropic.NotFoundError` → `ModelUnavailableError` instead of a bare Exception the generic handler swallowed (the crash-loop mechanism)
+  - Slack recovery: `notify_model_unavailable` posts alternatives IN-THREAD, `poll_for_model_choice` reads the reply (number or full model ID), `set_model()` persists, transcript retries automatically (never marked `FAILED_`)
+  - No-Slack path pauses the watch loop with instructions (module flag `_model_paused_for_file`) instead of hot-looping
+  - Anti-drift guard: `test_model_registry.py` (15 tests) fails the build if ANY call site reintroduces a hardcoded `claude-*` literal — verified against the live API
+- ✅ **API Credits Exhaustion — Pause & Resume** (2026-03-01)
   - Fixed bug where credits exhaustion permanently marked file as FAILED_ and never retried
   - `APICreditsExhaustedError` now pauses the watcher instead of failing
   - With Slack: sends top-level notification via `notify_credits_exhausted()`, then blocks via `poll_for_resume()` (polls every 30s for "resume" reply)
@@ -198,21 +206,27 @@ The multi-step pipeline uses dedicated parsing functions for each step:
 **Authentication:** API key via `ANTHROPIC_API_KEY` environment variable
 **Credentials:** Obtain from https://console.anthropic.com/
 
-**Models Used:**
-- Claude 3.5 Sonnet (default) - Balanced performance and quality
+**Model resolution (single source of truth):** The model is NOT hardcoded. Every
+call resolves it via `model_registry.get_model()`, which reads `config.json`
+`api.model` (default `claude-sonnet-5`); `ANTHROPIC_MODEL` env var overrides. When a
+model is retired the processor recovers interactively over Slack (see the Model
+Deprecation Fallback feature above). `test_model_registry.py` fails the build if any
+call site reintroduces a hardcoded `claude-*` literal.
 
 **API Patterns:**
 ```python
 # In youtube_processor.py
 from anthropic import Anthropic
+from model_registry import get_model
 client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
 message = client.messages.create(
-    model="claude-3-5-sonnet-20241022",
+    model=get_model(),                 # single source of truth (config.json api.model)
     max_tokens=4096,
-    temperature=0.7,
+    thinking={"type": "disabled"},     # thinking tokens count against max_tokens; budgets are prose-sized
     messages=[{"role": "user", "content": prompt}]
 )
+# Note: no `temperature` — it is not accepted on current Claude models.
 ```
 
 **Cost Management:**
@@ -429,12 +443,15 @@ Edit `youtube_processor.py`:
 ```
 first-cup-processor/
 ├── youtube_processor.py          # Main processor (3 modes: watch/manual/test)
+├── model_registry.py              # Single source of truth for the model ID + deprecation recovery
 ├── slack_helper.py                # Slack integration layer
 ├── blog_publisher.py              # WordPress blog publishing (optional)
 ├── publish_poller.py              # Background daemon for publish triggers
 ├── publish_webhook.py             # HTTP webhook server (alternative trigger method)
 ├── test_parse_response.py         # Regression tests for response parsing
+├── test_model_registry.py         # Model resolution + deprecation-fallback tests (incl. anti-drift guard)
 ├── test_pipeline.py               # Test script for multi-step pipeline validation
+├── .codemap/                      # Navigation hubs for /diagnose (INDEX.md + per-subsystem)
 ├── config.json                    # Settings (safe to commit)
 ├── .env                           # Secrets (NEVER commit)
 ├── .env.template                  # Template for credentials

@@ -19,7 +19,8 @@ ANTHROPIC_API_KEY=sk-ant-...
 ```
 
 **Notes:**
-- The model used is `claude-sonnet-4-20250514`
+- The model is resolved by `model_registry.get_model()` from `config.json` `api.model` (default `claude-sonnet-5`); `ANTHROPIC_MODEL` env var overrides. No model ID is hardcoded at a call site.
+- A retired/unavailable model raises `ModelUnavailableError` — processor pauses, offers alternatives over Slack, saves the choice via `set_model()`, and retries (file is not marked `FAILED_`)
 - Credits exhaustion raises `APICreditsExhaustedError` — processor will pause and wait for "resume" rather than failing the file permanently
 - Rate limits raise `APIRateLimitError` — file is marked `FAILED_` (rate limits resolve automatically)
 - Cost: ~$0.15-0.30 per 30-minute episode

@@ -153,10 +153,19 @@ APICreditsExhaustedError raised
 
 | Step | Function | Max Tokens | Model |
 |------|----------|-----------|-------|
-| Title generation | `get_titles_from_claude` | ~1000 | claude-sonnet-4-20250514 |
-| YouTube description + keywords | `create_youtube_description_prompt` | 4000 | claude-sonnet-4-20250514 |
-| Newsletter teaser | `create_newsletter_teaser_prompt` | 1000 | claude-sonnet-4-20250514 |
-| Blog post | `create_blog_post_prompt` | 2000 | claude-sonnet-4-20250514 |
+| Title generation | `get_titles_from_claude` | ~1000 | resolved by `model_registry.get_model()` |
+| YouTube description + keywords | `create_youtube_description_prompt` | 4000 | resolved by `model_registry.get_model()` |
+| Newsletter teaser | `create_newsletter_teaser_prompt` | 1000 | resolved by `model_registry.get_model()` |
+| Blog post | `create_blog_post_prompt` | 2000 | resolved by `model_registry.get_model()` |
+
+**Model resolution (single source of truth):** No call site hardcodes a model ID.
+Every call resolves the model via `model_registry.get_model()`, which reads
+`config.json` → `api.model` (default `claude-sonnet-5`); the `ANTHROPIC_MODEL`
+env var overrides it. When a model is retired the API returns 404 → the processor
+raises `ModelUnavailableError`, offers live alternatives over Slack, saves the
+chosen replacement with `set_model()`, and retries — no code edit needed. A
+regression test (`test_model_registry.py`) fails the build if any call site
+reintroduces a hardcoded `claude-*` literal.
 
 **Cost:** ~$0.15-0.30 per 30-minute episode
 

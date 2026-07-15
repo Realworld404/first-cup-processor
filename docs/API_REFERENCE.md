@@ -7,7 +7,9 @@
 ## Anthropic Claude API
 
 **Purpose:** Content generation (titles, descriptions, newsletter, blog post)
-**Model:** `claude-sonnet-4-20250514`
+**Model:** resolved at runtime by `model_registry.get_model()` — reads `config.json`
+`api.model` (default `claude-sonnet-5`); `ANTHROPIC_MODEL` env var overrides. Never
+hardcoded at a call site.
 **Auth:** `ANTHROPIC_API_KEY` environment variable
 **SDK:** `anthropic` Python library (`anthropic>=0.18.0`)
 
@@ -15,18 +17,28 @@
 
 ```python
 from anthropic import Anthropic
-import anthropic
+from model_registry import get_model
 
 client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
 # All calls go through call_claude_api() in youtube_processor.py
 message = client.messages.create(
-    model="claude-sonnet-4-20250514",
+    model=get_model(),                 # single source of truth
     max_tokens=4000,
+    thinking={"type": "disabled"},     # thinking tokens count against max_tokens
     messages=[{"role": "user", "content": prompt}]
 )
 response_text = message.content[0].text
 ```
+
+### Model Deprecation Handling
+
+When the configured model is retired (`anthropic.NotFoundError` / 404),
+`call_claude_api()` raises `ModelUnavailableError` instead of failing generically.
+The processor then pauses, offers live alternatives from the Models API over Slack
+(`notify_model_unavailable` → `poll_for_model_choice`), persists the user's choice
+with `set_model()`, and retries the transcript automatically. The file is **not**
+marked `FAILED_`.
 
 ### Error Classification
 
