@@ -1467,6 +1467,9 @@ def process_transcript_file(filepath, output_dir, api_key, template_path, exampl
         global _model_paused_for_file
         print(f"\n  🛑 {e}")
 
+        # Build a client to query the live Models API (this function has api_key,
+        # not a client — the API calls create their own clients internally).
+        client = anthropic.Anthropic(api_key=api_key)
         alternatives = suggest_alternatives(client, e.model)
 
         if slack and slack.is_enabled():

@@ -225,6 +225,81 @@ def test_call_claude_api_raises_model_unavailable_on_404():
               f"raised {type(e).__name__} instead: {e}")
 
 
+def test_handler_reaches_slack_without_nameerror():
+    """Regression: the ModelUnavailableError handler referenced an undefined
+    `client`, raising NameError before it ever notified Slack — so the watcher
+    hot-looped instead of pausing (observed in live testing 2026-07-14).
+
+    The earlier tests only checked that call_claude_api *raises* the error; none
+    exercised the *handler*. This drives process_transcript_file end-to-end with
+    fakes and asserts it notifies Slack and persists the choice — no NameError.
+    """
+    import youtube_processor as yp
+
+    calls = {}
+
+    class FakeSlack:
+        def is_enabled(self):
+            return True
+
+        def start_new_thread(self):
+            pass
+
+        def notify_processing_start(self, f):
+            pass
+
+        def notify_model_unavailable(self, model, alts, filename):
+            calls["notified"] = (model, list(alts), filename)
+
+        def poll_for_model_choice(self, alts):
+            calls["polled"] = list(alts)
+            return alts[0]
+
+        def notify_model_selected(self, model):
+            calls["selected"] = model
+
+    def boom(*a, **k):
+        raise ModelUnavailableError("gone", model="claude-sonnet-4-20250514")
+
+    saved = {}
+    orig = {
+        "title": yp.interactive_title_selection,
+        "suggest": yp.suggest_alternatives,
+        "set_model": yp.set_model,
+    }
+    yp.interactive_title_selection = boom
+    yp.suggest_alternatives = lambda client, model: ["claude-sonnet-5", "claude-opus-4-8"]
+    yp.set_model = lambda m: saved.__setitem__("model", m)
+
+    tdir = Path(tempfile.mkdtemp())
+    tf = tdir / "ep.txt"
+    tf.write_text("transcript body")
+
+    try:
+        result = yp.process_transcript_file(
+            tf, str(tdir), "sk-fake-key",
+            Path("nonexistent-template.txt"), Path("nonexistent-examples.md"),
+            slack=FakeSlack(),
+        )
+        ok = (
+            "notified" in calls
+            and "polled" in calls
+            and saved.get("model") == "claude-sonnet-5"
+            and result is None
+        )
+        check("ModelUnavailableError handler notifies Slack + persists choice "
+              "(no NameError)", ok, f"calls={calls} saved={saved}")
+    except NameError as e:
+        check("ModelUnavailableError handler notifies Slack + persists choice "
+              "(no NameError)", False, f"NameError: {e}")
+    finally:
+        yp.interactive_title_selection = orig["title"]
+        yp.suggest_alternatives = orig["suggest"]
+        yp.set_model = orig["set_model"]
+        tf.unlink()
+        tdir.rmdir()
+
+
 def test_load_config_executes():
     """Regression: load_config() referenced the removed MODEL constant.
 
@@ -245,6 +320,7 @@ def main():
     print("MODEL REGISTRY / DEPRECATION FALLBACK TESTS")
     print("=" * 60)
     for fn in [
+        test_handler_reaches_slack_without_nameerror,
         test_load_config_executes,
         test_get_model_reads_config,
         test_get_model_falls_back_when_key_missing,

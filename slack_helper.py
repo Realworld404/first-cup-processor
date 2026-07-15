@@ -320,8 +320,10 @@ _The processor will retry the file automatically._"""
     def notify_model_unavailable(self, model, alternatives, filename):
         """The configured Claude model is retired/unavailable — ask for a replacement.
 
-        Top-level (not threaded), like the credits alert: this is an operator
-        alert about the service itself, not about one transcript's thread.
+        Posted IN-THREAD, mirroring send_title_options: the reply is read via
+        conversations.replies on thread_ts, so the prompt and the reply must live
+        in the same thread. (A top-level message would land the user's reply in a
+        different thread than poll_for_model_choice watches.)
         """
         options = "\n".join(
             f"  *{i}.* `{alt}`" for i, alt in enumerate(alternatives[:5], 1)
@@ -332,11 +334,11 @@ The model `{model}` was rejected by the API (retired, renamed, or not on your pl
 
 File waiting: `{filename}`
 
-*Reply with a number to switch models:*
+*Reply in this thread with a number to switch models:*
 {options}
 
 _You can also reply with a full model ID. Your choice is saved to config.json and used from now on._"""
-        self.send_message(text, in_thread=False)
+        self.send_message(text)  # in_thread=True (default)
 
     def poll_for_model_choice(self, alternatives, poll_interval=30, timeout_seconds=None):
         """Block until the user picks a replacement model. Returns the model ID.
@@ -411,11 +413,10 @@ _You can also reply with a full model ID. Your choice is saved to config.json an
             time.sleep(poll_interval)
 
     def notify_model_selected(self, model):
-        """Confirm the new model was saved and processing is resuming."""
+        """Confirm the new model was saved and processing is resuming (in-thread)."""
         self.send_message(
             f"✅ Model switched to `{model}` and saved to config.json.\n"
-            f"_Retrying the waiting transcript now._",
-            in_thread=False,
+            f"_Retrying the waiting transcript now._"
         )
 
     def notify_error(self, filename, error_message):
